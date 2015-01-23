@@ -9,11 +9,9 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-#include <stdbool.h>
 #include <sysexits.h>
 #include <signal.h>
 #include <unistd.h>
-
 
 static void 
 sig_handler(const int sig)
@@ -44,6 +42,7 @@ int
 main (int argc, char **argv)
 {
 	int c;
+	enum hashfunc_type hash_type = JENKINS_HASH;
 
 	if (!sanitycheck()){
 		return EX_OSERR;
@@ -69,6 +68,10 @@ main (int argc, char **argv)
 		}
 	}
 
+	if (hash_init(hash_type) != 0){
+		fprintf(stderr, "Failed to initialize hash_algorithm!\n");
+		exit(EX_USAGE);
+	}
 
 	return 0;
 }

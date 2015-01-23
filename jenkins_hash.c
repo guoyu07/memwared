@@ -9,7 +9,7 @@
  *       or commercial.  It's free."
  *
  */
-#include "memcached.h"
+#include "memwared.h"
 #include "jenkins_hash.h"
 
 /*
@@ -17,6 +17,7 @@
  * whether it's big or little-endian. ENDIAN_LITTLE and ENDIAN_BIG
  * are set in the configure script.
  */
+
 #if ENDIAN_BIG == 1
 # define HASH_LITTLE_ENDIAN 0
 # define HASH_BIG_ENDIAN 1
