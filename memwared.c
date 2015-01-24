@@ -16,6 +16,14 @@
 #include <sys/resource.h>
 #include <pwd.h>
 
+/* event handling, network IO*/
+static void conn_init(void);
+
+static struct event_base *main_base;
+
+static void conn_init(void){
+	
+}
 
 static void 
 sig_handler(const int sig)
@@ -119,6 +127,7 @@ main (int argc, char **argv)
 		}
 	}
 
+	/* start allow root user */
 	if (getuid() == 0 || geteuid() == 0){
 		if (username == 0 || *username == '\0'){
 			fprintf(stderr, "can't run as root without the -u switch\n");
@@ -132,6 +141,18 @@ main (int argc, char **argv)
 			fprintf(stderr, "failed to assume identity of user %s \n", username);
 			exit(EX_OSERR);
 		}
+	}
+
+	/* initialize main thread libevent instance */
+	main_base = event_init();
+
+	/* initialize other stuff*/
+	assoc_init(settings.hashpower_init);
+	conn_init();
+	
+	if (sigignore(SIGPIPE) == -1){
+		perror("failed to ignore SIGPIPE; sigaction");
+		exit(EX_OSERR);
 	}
 
 	return 0;
