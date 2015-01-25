@@ -123,6 +123,12 @@ enum protocol {
     negotiating_prot /* Discovering the protocol */
 };
 
+enum network_transport {
+	local_transport, /* Unix sockets */
+	tcp_transport,
+	udp_transport
+};
+
 enum pause_thread_types {
     PAUSE_WORKER_THREADS = 0,
     PAUSE_ALL_THREADS,

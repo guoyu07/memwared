@@ -75,6 +75,19 @@ static void conn_init(void){
 	
 }
 
+static int server_sockets(int port, enum network_transport transport,
+		FILE *portnumber_file)
+{
+	if (settings.inter == NULL)	{
+		return server_socket(settings_inter, port, transport, portnumber_file);
+	}else {
+		char *b;
+		int ret = 0;
+	}
+}
+
+
+
 static void 
 sig_handler(const int sig)
 {
@@ -203,6 +216,36 @@ main (int argc, char **argv)
 	if (sigignore(SIGPIPE) == -1){
 		perror("failed to ignore SIGPIPE; sigaction");
 		exit(EX_OSERR);
+	}
+
+	/* socket tcp ,bind */
+	if (settings.socketpath == NULL){
+		const char *portnumber_filename = getenv("MEMCACHE_PORT_FILENAME");
+		char temp_portnumber_filename[PATH_MAX];
+		FILE *portnumber_file = NULL;
+		
+		if (portnumber_filename != NULL){
+			snprintf(temp_portnumber_filename,
+					sizeof(temp_portnumber_filename),
+					"%s.lck",portnumber_filename);
+			portnumber_file = fopen(temp_portnumber_filename, "a");
+			if (portnumber_file == NULL){
+				fprintf(stderr, "Failed to open \"%s\": %s\n",
+						temp_portnumber_filename, strerror(errno));
+			}
+		}
+
+		errno = 0;
+		if (settings.port && server_sockets(settings.port, tcp_transport,
+					portnumber_file)){
+			vperror("failed to listen on TCP port %d", settings.port);
+			exit(EX_OSERR);
+		}
+
+		if (portnumber_file){
+			fclose(portnumber_file);
+			rename(temp_portnumber_filename, portnumber_filename);
+		}
 	}
 
 	return 0;
