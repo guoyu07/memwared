@@ -15,6 +15,10 @@
 #include <limits.h>
 #include <sys/resource.h>
 #include <pwd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <fcntl.h>
 
 /* defaults */
  static void settings_init(void);
@@ -75,6 +79,52 @@ static void conn_init(void){
 	
 }
 
+/*static int server_socket(const char *interface,
+						int prot,
+						enum network_transport transport,
+						FILE *portnumber_file){
+	int sfd;
+	struct linger ling = {0,0};
+	struct addrinfo *ai;
+	struct addrinfo *next;
+	struct addrinfo hints = {.ai_flags = AI_PASSIVE,
+							.ai_family = AF_UNSPEC};
+	char port_buf[NI_MAXSERV];
+	int error;
+	int success = 0;
+	int flags = 1;
+
+	hints.ai_socktype = IS_UDP(transport) ? SOCK_DGRAM : SOCKSTREAM;
+
+	if (port == -1){
+		port = 0;
+	}
+	snprintf(port_buf, sizeof(port_buf), "%d", port);
+	error = getaddrinfo(interface, port_buf, &hints, &ai);
+	if (error != 0){
+		if (error != EAI_SYSTEM){
+			fprintf(stderr, "getaddrinfo(): %s\n", gai_strerror(error));
+		}else {
+			perror("getaddrinfo()");
+			return 1;
+		}
+	}
+
+	for (next = ai; next; next = next->ai_next){
+		conn *listen_conn_add;
+		if ((sfd = new_socket(next)) == -1){
+			if (errno = EMFILE){
+				perror("server_socket");
+				exit(EX_OSERR);
+			}
+			continue;
+		}
+
+		setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
+	}
+
+}
+
 static int server_sockets(int port, enum network_transport transport,
 		FILE *portnumber_file)
 {
@@ -83,9 +133,35 @@ static int server_sockets(int port, enum network_transport transport,
 	}else {
 		char *b;
 		int ret = 0;
+		char *list = strdup(settings.inter);
+
+		if (list == NULL){
+			fprintf(stderr, "Failed to allocate memory for parsing server interface string\n");
+			return 1;
+		}
+		for (char *p = strtok_r(list, ";,", &b);
+				p != NULL;
+				p = strtok_r(NULL, ";,", &b)){
+			int the_port = port;
+			char *s = strchr(p, ':');
+			if (s != NULL){
+				*s = '\0';
+				++s;
+				if (!safe_strtol(s, &the_port)){
+					fprintf(stderr, "Invalid port number: \"%s\"", s);
+					return 1;
+				}
+			}
+			if (strcmp(p, "*") == 0){
+				p = NULL;
+			}
+			ret |= server_socket(p, the_port, transport, portnumber_file);
+		}
+		free(list);
+		return ret;
 	}
 }
-
+*/
 
 
 static void 
@@ -142,6 +218,7 @@ main (int argc, char **argv)
 		))){
 		switch (c){
 		case 'p':
+			settings.port = atoi(optarg);
 			printf("TCP port: %d\n",atoi(optarg));
 			break;
 		case 'r':
@@ -219,7 +296,7 @@ main (int argc, char **argv)
 	}
 
 	/* socket tcp ,bind */
-	if (settings.socketpath == NULL){
+	/*if (settings.socketpath == NULL){
 		const char *portnumber_filename = getenv("MEMCACHE_PORT_FILENAME");
 		char temp_portnumber_filename[PATH_MAX];
 		FILE *portnumber_file = NULL;
@@ -246,7 +323,46 @@ main (int argc, char **argv)
 			fclose(portnumber_file);
 			rename(temp_portnumber_filename, portnumber_filename);
 		}
+	}*/
+
+	int sfd;
+	int flags;
+	struct sockaddr_in serv_addr;
+	if ((sfd = socket(PF_INET, SOCK_STREAM, 0)) < 0){
+		perror("sokcet error");
+		return -1;
+	}
+	if ((flags = fcntl(sfd, F_GETFL, 0) < 0 || 
+				fcntl(sfd, F_SETFL, flags | O_NONBLOCK) < 0)){
+		perror("setting O_NONBLOCK");
+		close(sfd);
+		return -1;
+	}
+	
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(settings.port);
+	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+	int ireuseadd_on = 1;
+	setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &ireuseadd_on, sizeof(ireuseadd_on));
+	
+	if (bind(sfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) != 0){
+		perror("bind() error");
+		close(sfd);
+		return -1;
 	}
 
+	if (listen(sfd, settings.backlog) < 0){
+		perror("listen() error");
+		close(sfd);
+		return -1;
+	}else {
+		printf("服务器监听中...\n");
+	}
+
+	
+	close(sfd);
 	return 0;
 }
