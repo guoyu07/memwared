@@ -24,6 +24,7 @@
  static void settings_init(void);
 
 /* event handling, network IO*/
+void do_accept( int sfd, short which, void *arg);
 static void conn_init(void);
 
 
@@ -77,6 +78,11 @@ static void settings_init(void) {
 
 static void conn_init(void){
 	
+}
+
+void do_accept(int fd, short which, void *arg)
+{
+	printf("event_handler();\n");
 }
 
 /*static int server_socket(const char *interface,
@@ -362,7 +368,17 @@ main (int argc, char **argv)
 		printf("服务器监听中...\n");
 	}
 
-	
+	struct event ev;
+	printf("%d\n",sfd);
+	event_set(&ev, sfd, EV_READ | EV_PERSIST, do_accept, &ev);
+	event_base_set(main_base, &ev);
+	event_add(&ev, 0);
+
+	if (event_base_loop(main_base, 0) != 0){
+		exit(EX_OSERR);
+	}
+
+
 	close(sfd);
 	return 0;
 }
