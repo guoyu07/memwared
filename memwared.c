@@ -24,7 +24,7 @@
  static void settings_init(void);
 
 /* event handling, network IO*/
-void do_accept( int sfd, short which, void *arg);
+void do_accept( int sfd, short event, void *arg);
 static void conn_init(void);
 
 
@@ -80,9 +80,24 @@ static void conn_init(void){
 	
 }
 
-void do_accept(int fd, short which, void *arg)
+void do_accept(int fd, short event, void *arg)
 {
-	printf("event_handler();\n");
+	int sfd;
+	struct sockaddr_in sin;
+	socklen_t addrlen;
+	addrlen = sizeof(sin);
+	
+	sfd = accept(fd, (struct sockaddr *)&sin, &addrlen);
+	if (sfd == -1){
+		perror("accept failed\n");
+	}else {
+		printf("accept\n");
+	}
+	
+	sleep(5);
+	//event_del(arg);
+	close(sfd);
+	return ;
 }
 
 /*static int server_socket(const char *interface,
@@ -365,7 +380,7 @@ main (int argc, char **argv)
 		close(sfd);
 		return -1;
 	}else {
-		printf("服务器监听中...\n");
+		printf("listenning...\n");
 	}
 
 	struct event ev;
