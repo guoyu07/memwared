@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 /* defaults */
  static void settings_init(void);
@@ -80,6 +81,8 @@ static void conn_init(void){
 	
 }
 
+
+
 void do_accept(int fd, short event, void *arg)
 {
 	int sfd;
@@ -91,12 +94,27 @@ void do_accept(int fd, short event, void *arg)
 	if (sfd == -1){
 		perror("accept failed\n");
 	}else {
-		printf("accept\n");
+		printf("accept: sfd[%d]\n",sfd);
 	}
 	
-	sleep(5);
+	bool stop = false;
+	char buffer[1024];
+	int rev_size;
+
+	while (!stop){
+		memset(buffer, 0, 1024);
+		rev_size = recv(sfd, buffer, 1024, 0);
+		if (rev_size > 0){
+			printf("recv: %s", buffer);
+		}else {
+			printf("error recv\n");
+			stop = true;
+			close(sfd);
+		}
+	}
+
 	//event_del(arg);
-	close(sfd);
+	//close(sfd);
 	return ;
 }
 
