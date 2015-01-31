@@ -26,6 +26,7 @@
 
 /* event handling, network IO*/
 void do_accept( int sfd, short event, void *arg);
+void do_read(int sfd, short event, void *arg);
 static void conn_init(void);
 
 
@@ -89,32 +90,54 @@ void do_accept(int fd, short event, void *arg)
 	struct sockaddr_in sin;
 	socklen_t addrlen;
 	addrlen = sizeof(sin);
-	
 	sfd = accept(fd, (struct sockaddr *)&sin, &addrlen);
 	if (sfd == -1){
-		perror("accept failed\n");
+		perror("accept failed");
+		close(sfd);
 	}else {
 		printf("accept: sfd[%d]\n",sfd);
 	}
-	
-	bool stop = false;
+	printf("main_base ptr: %p\n",arg);
+
+	struct event *rev = (struct event*)malloc(sizeof(struct event));
+	//struct event rev;
+	event_set(rev, sfd, EV_READ|EV_PERSIST,do_read, rev);
+	event_base_set(main_base,rev);
+	event_add(rev, 0);
+
+	/*bool stop = false;
 	char buffer[1024];
 	int rev_size;
+	
 
-	while (!stop){
-		memset(buffer, 0, 1024);
-		rev_size = recv(sfd, buffer, 1024, 0);
-		if (rev_size > 0){
-			printf("recv: %s", buffer);
-		}else {
-			printf("error recv\n");
-			stop = true;
-			close(sfd);
-		}
-	}
+	memset(buffer, 0, 1024);
+	rev_size = recv(sfd, buffer, 1024, 0);
+	if (rev_size > 0){
+		printf("recv: %s", buffer);
+	}else {
+		printf("error recv\n");
+		stop = true;
+		close(sfd);
+	}*/
 
 	//event_del(arg);
 	//close(sfd);
+	return ;
+}
+
+void do_read(int sfd, short event, void *arg){
+	printf("read fd: %d\n", sfd);
+	char buffer[1024];
+	int rev_size;
+	memset(buffer, 0, 1024);
+	rev_size = recv(sfd, buffer, 1024, 0);
+	if (rev_size > 0){
+		printf("recv: %s", buffer);
+	}else {
+		printf("error recv \n");
+		close(sfd);
+		event_del(arg);
+	}
 	return ;
 }
 
@@ -402,7 +425,8 @@ main (int argc, char **argv)
 	}
 
 	struct event ev;
-	printf("%d\n",sfd);
+	printf("socket fd: %d\n",sfd);
+	printf("main_base ptr: %p\n",main_base);
 	event_set(&ev, sfd, EV_READ | EV_PERSIST, do_accept, &ev);
 	event_base_set(main_base, &ev);
 	event_add(&ev, 0);
