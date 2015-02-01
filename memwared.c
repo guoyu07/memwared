@@ -97,28 +97,15 @@ void do_accept(int fd, short event, void *arg)
 	}else {
 		printf("accept: sfd[%d]\n",sfd);
 	}
-	printf("main_base ptr: %p\n",arg);
+	//printf("main_base ptr: %p\n",arg);
 
+	printf("main_base ptr: %p\n",main_base);
 	struct event *rev = (struct event*)malloc(sizeof(struct event));
 	//struct event rev;
 	event_set(rev, sfd, EV_READ|EV_PERSIST,do_read, rev);
 	event_base_set(main_base,rev);
 	event_add(rev, 0);
 
-	/*bool stop = false;
-	char buffer[1024];
-	int rev_size;
-	
-
-	memset(buffer, 0, 1024);
-	rev_size = recv(sfd, buffer, 1024, 0);
-	if (rev_size > 0){
-		printf("recv: %s", buffer);
-	}else {
-		printf("error recv\n");
-		stop = true;
-		close(sfd);
-	}*/
 
 	//event_del(arg);
 	//close(sfd);
@@ -133,11 +120,14 @@ void do_read(int sfd, short event, void *arg){
 	rev_size = recv(sfd, buffer, 1024, 0);
 	if (rev_size > 0){
 		printf("recv: %s", buffer);
+		//close(sfd);
 	}else {
 		printf("error recv \n");
-		close(sfd);
-		event_del(arg);
+		//close(sfd);
+		//event_del(arg);
 	}
+	event_del(arg);
+	close(sfd);
 	return ;
 }
 
@@ -301,7 +291,7 @@ main (int argc, char **argv)
 	}
 
 	/* maxcore file limit */
-	if (maxcore != 0){
+	/*if (maxcore != 0){
 		struct rlimit rlim_new;
 		if (getrlimit(RLIMIT_CORE, &rlim) == 0){
 			rlim_new.rlim_cur = rlim_new.rlim_max = RLIM_INFINITY;
@@ -327,7 +317,7 @@ main (int argc, char **argv)
 			fprintf(stderr, "failed to set rlimit for open files. Try starting as root or requesting smaller maxconns value.\n");
 			exit(EX_OSERR);
 		}
-	}
+	}*/
 
 	/* start allow root user */
 	if (getuid() == 0 || geteuid() == 0){
