@@ -20,6 +20,8 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <bson.h>
+#include <mongoc.h>
 
 /* defaults */
  static void settings_init(void);
@@ -27,6 +29,7 @@
 /* event handling, network IO*/
 void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, void *arg);
+void *mongo_clt_worker (void *data);
 static void conn_init(void);
 
 
@@ -36,7 +39,8 @@ struct settings settings;
 
 
 static struct event_base *main_base;
-
+mongoc_client_pool_t *mongoc_pool;
+mongoc_uri_t *mongoc_uri;
 
 
 
@@ -95,11 +99,11 @@ void do_accept(int fd, short event, void *arg)
 		perror("accept failed");
 		close(sfd);
 	}else {
-		printf("accept: sfd[%d]\n",sfd);
+		//printf("accept: sfd[%d]\n",sfd);
 	}
-	//printf("main_base ptr: %p\n",arg);
+	
 
-	printf("main_base ptr: %p\n",main_base);
+	//printf("main_base ptr: %p\n",main_base);
 	struct event *rev = (struct event*)malloc(sizeof(struct event));
 	//struct event rev;
 	event_set(rev, sfd, EV_READ|EV_PERSIST,do_read, rev);
@@ -113,13 +117,14 @@ void do_accept(int fd, short event, void *arg)
 }
 
 void do_read(int sfd, short event, void *arg){
-	printf("read fd: %d\n", sfd);
+	//printf("read fd: %d\n", sfd);
 	char buffer[1024];
 	int rev_size;
 	memset(buffer, 0, 1024);
 	rev_size = recv(sfd, buffer, 1024, 0);
 	if (rev_size > 0){
-		printf("recv: %s", buffer);
+		//printf("recv: %s", buffer);
+		mongo_clt_worker(mongoc_pool);
 		//close(sfd);
 	}else {
 		printf("error recv \n");
@@ -129,6 +134,40 @@ void do_read(int sfd, short event, void *arg){
 	event_del(arg);
 	close(sfd);
 	return ;
+}
+
+void *mongo_clt_worker (void *data)
+{
+	mongoc_client_pool_t *pool = data;
+	mongoc_client_t *client;
+	mongoc_collection_t *collection;
+	mongoc_cursor_t *cursor;
+	const bson_t *doc;
+	bson_t *query;
+	char *str;
+
+	client = mongoc_client_pool_pop(pool);
+	if (!client){
+		return NULL;
+	}
+	collection = mongoc_client_get_collection(client, "gamedb","entity_ff14_ClassJob");
+	query = bson_new();
+	BSON_APPEND_INT32(query, "Key", 1);
+	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
+	while(mongoc_cursor_next(cursor, &doc)){
+		str = bson_as_json(doc, NULL);
+		//printf("%s\n", str);
+		bson_free(str);
+	}
+	bson_destroy(query);
+	mongoc_cursor_destroy(cursor);
+	mongoc_collection_destroy(collection);
+
+
+
+	mongoc_client_pool_push(pool,client);
+	
+	return NULL;
 }
 
 /*static int server_socket(const char *interface,
@@ -414,6 +453,10 @@ main (int argc, char **argv)
 		printf("listenning...\n");
 	}
 
+	mongoc_init();
+	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minPollSize=16");
+	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
+
 	struct event ev;
 	printf("socket fd: %d\n",sfd);
 	printf("main_base ptr: %p\n",main_base);
@@ -426,6 +469,9 @@ main (int argc, char **argv)
 	}
 
 
+	printf("close memwared bye!\n");
+	mongoc_uri_destroy(mongoc_uri);
+	mongoc_cleanup();
 	close(sfd);
 	return 0;
 }
