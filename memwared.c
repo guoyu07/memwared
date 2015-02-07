@@ -98,8 +98,15 @@ void do_accept(int fd, short event, void *arg)
 	if (sfd == -1){
 		perror("accept failed");
 		close(sfd);
+		return ((void)1);
 	}else {
 		//printf("accept: sfd[%d]\n",sfd);
+	}
+
+	if (fcntl(sfd, F_SETFL, fcntl(sfd, F_GETFL) | O_NONBLOCK) < 0){
+		perror("setting O_NONBLOCK");
+		close(sfd);
+		return ((void)2);
 	}
 	
 
