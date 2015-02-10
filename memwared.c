@@ -29,8 +29,11 @@
 /* event handling, network IO*/
 void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, void *arg);
+void do_write(int sfd, short event, void *arg);
 void *mongo_clt_worker (void *data);
 static void conn_init(void);
+
+void memwared_close(int sig);
 
 
 /** exported globals **/
@@ -131,12 +134,31 @@ void do_read(int sfd, short event, void *arg){
 	rev_size = recv(sfd, buffer, 1024, 0);
 	if (rev_size > 0){
 		//printf("recv: %s", buffer);
-		mongo_clt_worker(mongoc_pool);
-		//close(sfd);
+		//mongo_clt_worker(mongoc_pool);
 	}else {
 		printf("error recv \n");
-		//close(sfd);
-		//event_del(arg);
+	}
+	
+	struct event *send = (struct event*)malloc(sizeof(struct event));
+	event_set(send, sfd, EV_WRITE|EV_PERSIST, do_write, send);
+	event_base_set(main_base,send);
+	event_add(send, 0);
+	event_del(arg);
+	//close(sfd);
+	return ;
+}
+
+void do_write(int sfd, short event, void *arg){
+	char buffer[1024];
+	int send_size;
+	memset(buffer,0,1024);
+	mongo_clt_worker(mongoc_pool);
+	sprintf(buffer,"send buffer fd: %d\n",sfd);
+	send_size = send(sfd,buffer, sizeof(buffer)+1,0);
+	if (send_size < 0){
+		printf("error send \n");
+	}else {
+		//printf("send: %s\n", buffer);
 	}
 	event_del(arg);
 	close(sfd);
@@ -175,6 +197,13 @@ void *mongo_clt_worker (void *data)
 	mongoc_client_pool_push(pool,client);
 	
 	return NULL;
+}
+
+void memwared_close(int sig)
+{
+	printf("memwared close, please 'ctrl+c' to shutdown \n");
+	threadpool_destroy();
+	signal(SIGINT, SIG_DFL);
 }
 
 /*static int server_socket(const char *interface,
@@ -331,10 +360,10 @@ main (int argc, char **argv)
 		}
 	}
 
-	if (hash_init(hash_type) != 0){
+	/*if (hash_init(hash_type) != 0){
 		fprintf(stderr, "Failed to initialize hash_algorithm!\n");
 		exit(EX_USAGE);
-	}
+	}*/
 
 	/* maxcore file limit */
 	/*if (maxcore != 0){
@@ -386,12 +415,15 @@ main (int argc, char **argv)
 
 	/* initialize other stuff*/
 	//assoc_init(settings.hashpower_init);
-	conn_init();
+	//conn_init();
 	
 	if (sigignore(SIGPIPE) == -1){
 		perror("failed to ignore SIGPIPE; sigaction");
 		exit(EX_OSERR);
 	}
+	
+	/* thread_pool_init */
+	threadpool_init(4);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){
@@ -470,6 +502,8 @@ main (int argc, char **argv)
 	event_set(&ev, sfd, EV_READ | EV_PERSIST, do_accept, &ev);
 	event_base_set(main_base, &ev);
 	event_add(&ev, 0);
+	
+	signal(SIGINT, memwared_close);
 
 	if (event_base_loop(main_base, 0) != 0){
 		exit(EX_OSERR);
