@@ -30,6 +30,7 @@
 void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, void *arg);
 void do_write(int sfd, short event, void *arg);
+void *conn_work_process(void *arg);
 void *mongo_clt_worker (void *data);
 static void conn_init(void);
 
@@ -94,6 +95,7 @@ static void conn_init(void){
 void do_accept(int fd, short event, void *arg)
 {
 	int sfd;
+	int fds[4];
 	struct sockaddr_in sin;
 	socklen_t addrlen;
 	addrlen = sizeof(sin);
@@ -112,18 +114,30 @@ void do_accept(int fd, short event, void *arg)
 		return ((void)2);
 	}
 	
+	fds[0] = sfd;
+	threadpool_add_worker(conn_work_process, &fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
-	struct event *rev = (struct event*)malloc(sizeof(struct event));
+	/*struct event *rev = (struct event*)malloc(sizeof(struct event));
 	//struct event rev;
 	event_set(rev, sfd, EV_READ|EV_PERSIST,do_read, rev);
 	event_base_set(main_base,rev);
-	event_add(rev, 0);
+	event_add(rev, 0);*/
 
 
 	//event_del(arg);
 	//close(sfd);
 	return ;
+}
+
+void *conn_work_process(void *arg)
+{
+	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), *(int*)arg);
+	struct event *rev = (struct event*)malloc(sizeof(struct event));
+	event_set(rev, *(int*)arg, EV_READ|EV_PERSIST,do_read, rev);
+	event_base_set(main_base,rev);
+	event_add(rev, 0);
+	return NULL;
 }
 
 void do_read(int sfd, short event, void *arg){
@@ -151,14 +165,14 @@ void do_read(int sfd, short event, void *arg){
 void do_write(int sfd, short event, void *arg){
 	char buffer[1024];
 	int send_size;
-	memset(buffer,0,1024);
+	memset(buffer,0,1024+1);
 	mongo_clt_worker(mongoc_pool);
-	sprintf(buffer,"send buffer fd: %d\n",sfd);
+	sprintf(buffer,"send buffer fd: %d",sfd);
 	send_size = send(sfd,buffer, sizeof(buffer)+1,0);
 	if (send_size < 0){
 		printf("error send \n");
 	}else {
-		//printf("send: %s\n", buffer);
+		//printf("send: %s", buffer);
 	}
 	event_del(arg);
 	close(sfd);
@@ -423,7 +437,7 @@ main (int argc, char **argv)
 	}
 	
 	/* thread_pool_init */
-	threadpool_init(4);
+	threadpool_init(3);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){

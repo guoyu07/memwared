@@ -67,23 +67,23 @@ int threadpool_destroy()
 
 void *threadpool_handle(void *arg)
 {
-	printf("starting thread 0x%x  \n", pthread_self());
+	//printf("starting thread 0x%x  \n", pthread_self());
 	//printf("%d,%d\n",pool->cur_queue_size, pool->shutdown);
 	while (1){
 		pthread_mutex_lock(&(pool->queue_lock));
 		//printf("%d,%d\n",pool->cur_queue_size, pool->shutdown);
 		while (pool->cur_queue_size == 0 && !pool->shutdown){
-			printf("thread 0x%x is waiting\n", pthread_self());
+			//printf("thread 0x%x is waiting\n", pthread_self());
 			pthread_cond_wait(&(pool->queue_ready), &(pool->queue_lock));
 		}
 
 		if (pool->shutdown){
 			pthread_mutex_unlock(&(pool->queue_lock));
-			printf("thread 0x%x will exit\n", pthread_self());
+			//printf("thread 0x%x will exit\n", pthread_self());
 			pthread_exit(NULL);
 		}
 
-		printf("thread 0x%x is starting to work\n", pthread_self());
+		//printf("thread 0x%x is starting to work\n", pthread_self());
 
 		assert(pool->cur_queue_size != 0);
 		assert(queue_peek(&(pool->work_queue)) != NULL);
