@@ -23,15 +23,17 @@ void threadpool_init(int max_thread_num)
 
 }
 
-int threadpool_add_worker(void *(*process)(void *arg), void *arg)
+int threadpool_add_worker(void *(*process)(void *arg), int sfd)
 {
 	threadworker *new_worker = (threadworker *)malloc(sizeof(threadworker));
 	new_worker->process = process;
-	new_worker->arg = arg;
-
+	new_worker->sfd = sfd;
+	new_worker->arg = &new_worker->sfd;
+	
 	pthread_mutex_lock(&(pool->queue_lock));
 	queue_enqueue(&(pool->work_queue) , new_worker);
 	pool->cur_queue_size++;
+	//printf("queue_size: %d\n",pool->cur_queue_size);
 	pthread_mutex_unlock(&(pool->queue_lock));
 	
 	pthread_cond_signal(&(pool->queue_ready));

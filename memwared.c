@@ -95,7 +95,6 @@ static void conn_init(void){
 void do_accept(int fd, short event, void *arg)
 {
 	int sfd;
-	int fds[4];
 	struct sockaddr_in sin;
 	socklen_t addrlen;
 	addrlen = sizeof(sin);
@@ -114,8 +113,9 @@ void do_accept(int fd, short event, void *arg)
 		return ((void)2);
 	}
 	
-	fds[0] = sfd;
-	threadpool_add_worker(conn_work_process, &fds[0]);
+
+	threadpool_add_worker(conn_work_process, sfd);
+	//conn_work_process(&fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
 	/*struct event *rev = (struct event*)malloc(sizeof(struct event));
@@ -437,7 +437,7 @@ main (int argc, char **argv)
 	}
 	
 	/* thread_pool_init */
-	threadpool_init(3);
+	threadpool_init(4);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){

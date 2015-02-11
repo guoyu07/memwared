@@ -11,6 +11,7 @@
 typedef struct _threadworker {
 	void *(*process)(void *arg);
 	void *arg;
+	int sfd;
 } threadworker;
 
 typedef struct _threadpool {
@@ -30,7 +31,7 @@ static threadpool *pool = NULL;
 
 void threadpool_init(int max_thread_num);
 int threadpool_destroy();
-int threadpool_add_worker(void *(*process)(void *arg), void *arg);
+int threadpool_add_worker(void *(*process)(void *arg), int sfd);
 void *threadpool_handle(void *arg);
 void *myprocess(void *arg);
 #endif
