@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+set_time_limit(0);
 echo "<h2>tcp/ip  connection memwared</h2>\n";
 $address = "127.0.0.1";
 $port = 8021;
@@ -21,6 +23,14 @@ if ($result === false){
 
 $in = "hello I'm memware client\n";
 socket_write($socket, $in, strlen($in));
+
+$data = '';
+while(true){
+	$out = @socket_read($socket, 1024, PHP_NORMAL_READ);
+	if ($out === false){echo "stop;";break;}
+	$data.=$out;
+}
+echo $data;
 
 socket_close($socket);
 
