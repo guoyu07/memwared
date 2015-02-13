@@ -14,6 +14,6 @@ memwared_SOURCES = memwared.c memwared.h \
 				   #cache.c cache.h \
 				   #assoc.c assoc.h 
 
-memwared_LDFLAGS = -lmongoc-1.0
+memwared_LDFLAGS = -lmongoc-1.0 -lmsgpack
 
 INCLUDES = -I/root/source/mongo-c-driver-1.1.0/src/libbson/src/bson -I/root/source/mongo-c-driver-1.1.0/src/mongoc

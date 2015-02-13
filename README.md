@@ -5,3 +5,5 @@ memwared a middle ware , using memcached protocol.
 libevent version :1.4.13-stable
 
 mongo-c-driver-1.1.0
+
+msgpack-c-cpp-0.5.9

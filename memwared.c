@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <bson.h>
 #include <mongoc.h>
+#include <msgpack.h>
 
 /* defaults */
  static void settings_init(void);
@@ -146,9 +147,16 @@ void do_read(int sfd, short event, void *arg){
 	int rev_size;
 	memset(buffer, 0, 1024);
 	rev_size = recv(sfd, buffer, 1024, 0);
+
 	if (rev_size > 0){
+		msgpack_unpacked msg;
+		msgpack_unpacked_init(&msg);
+		bool success = msgpack_unpack_next(&msg, buffer, sizeof(buffer), NULL);
+		msgpack_object obj = msg.data;
+		msgpack_object_print(stdout, obj);
+		printf("\n");
 		//printf("recv: %s", buffer);
-		//mongo_clt_worker(mongoc_pool);
+		mongo_clt_worker(mongoc_pool);
 	}else {
 		printf("error recv \n");
 	}
@@ -166,14 +174,30 @@ void do_write(int sfd, short event, void *arg){
 	char buffer[1024];
 	int send_size;
 	memset(buffer,0,1024+1);
-	mongo_clt_worker(mongoc_pool);
-	sprintf(buffer,"send buffer fd: %d",sfd);
+	//mongo_clt_worker(mongoc_pool);
+	//sprintf(buffer,"send buffer fd: %d",sfd);
+	
+	msgpack_sbuffer* msg_buffer = msgpack_sbuffer_new();
+	msgpack_packer* pk = msgpack_packer_new(msg_buffer,msgpack_sbuffer_write);
+
+	msgpack_pack_array(pk, 2);
+	msgpack_pack_raw(pk, 5);
+	msgpack_pack_raw_body(pk, "hello", 5);
+	msgpack_pack_raw(pk, 11);
+	msgpack_pack_raw_body(pk, "messagepack", 11);
+	
+	//printf("%s ,  %d", msg_buffer->data, msg_buffer->size);
+	strcpy(buffer,msg_buffer->data);
 	send_size = send(sfd,buffer, sizeof(buffer)+1,0);
 	if (send_size < 0){
 		printf("error send \n");
 	}else {
 		//printf("send: %s", buffer);
 	}
+
+	msgpack_sbuffer_free(msg_buffer);
+	msgpack_packer_free(pk);
+
 	event_del(arg);
 	close(sfd);
 	return ;
