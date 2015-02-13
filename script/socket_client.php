@@ -22,6 +22,8 @@ if ($result === false){
 }
 
 $in = "hello I'm memware client\n";
+$in = array("hello","msgpack");
+$in = msgpack_pack($in);
 socket_write($socket, $in, strlen($in));
 
 $data = '';
@@ -30,8 +32,9 @@ while(true){
 	if ($out === false){echo "stop;";break;}
 	$data.=$out;
 }
-echo $data;
-
+#echo $data;
+$data = msgpack_unpack($data);
+var_dump($data);
 socket_close($socket);
 
 ?>
