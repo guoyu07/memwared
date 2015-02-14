@@ -32,7 +32,7 @@ void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, void *arg);
 void do_write(int sfd, short event, void *arg);
 void *conn_work_process(void *arg);
-void *mongo_clt_worker (void *data);
+void *mongo_clt_worker (void *data, char *db, char *table);
 static void conn_init(void);
 
 void memwared_close(int sig);
@@ -148,15 +148,27 @@ void do_read(int sfd, short event, void *arg){
 	memset(buffer, 0, 1024);
 	rev_size = recv(sfd, buffer, 1024, 0);
 
+	char db[32];
+	char collection[64];
 	if (rev_size > 0){
 		msgpack_unpacked msg;
 		msgpack_unpacked_init(&msg);
 		bool success = msgpack_unpack_next(&msg, buffer, sizeof(buffer), NULL);
 		msgpack_object obj = msg.data;
-		msgpack_object_print(stdout, obj);
-		printf("\n");
+		if (obj.type == MSGPACK_OBJECT_ARRAY){
+			msgpack_object* p = obj.via.array.ptr;
+			memset(db, 0, 32);
+			strncpy(db, p->via.raw.ptr,p->via.raw.size);
+			//printf("%s\n",db);
+			p++;
+			memset(collection, 0, 64);
+			strncpy(collection, p->via.raw.ptr, p->via.raw.size);
+			//printf("%s\n",collection);
+		}
+		//msgpack_object_print(stdout, obj);
+		//printf("\n");
 		//printf("recv: %s", buffer);
-		mongo_clt_worker(mongoc_pool);
+		mongo_clt_worker(mongoc_pool, db, collection);
 	}else {
 		printf("error recv \n");
 	}
@@ -186,9 +198,12 @@ void do_write(int sfd, short event, void *arg){
 	msgpack_pack_raw(pk, 11);
 	msgpack_pack_raw_body(pk, "messagepack", 11);
 	
-	//printf("%s ,  %d", msg_buffer->data, msg_buffer->size);
+	//printf("%s,%d", msg_buffer->data, msg_buffer->size);
+	//sprintf(msg_buffer->data, "\n");
 	strcpy(buffer,msg_buffer->data);
-	send_size = send(sfd,buffer, sizeof(buffer)+1,0);
+	//sprintf(buffer, "\n");
+	//printf("%d",sizeof(buffer));
+	send_size = send(sfd,buffer, sizeof(buffer),0);
 	if (send_size < 0){
 		printf("error send \n");
 	}else {
@@ -203,7 +218,7 @@ void do_write(int sfd, short event, void *arg){
 	return ;
 }
 
-void *mongo_clt_worker (void *data)
+void *mongo_clt_worker (void *data, char* db, char* table)
 {
 	mongoc_client_pool_t *pool = data;
 	mongoc_client_t *client;
@@ -217,7 +232,7 @@ void *mongo_clt_worker (void *data)
 	if (!client){
 		return NULL;
 	}
-	collection = mongoc_client_get_collection(client, "gamedb","entity_ff14_ClassJob");
+	collection = mongoc_client_get_collection(client, db, table);
 	query = bson_new();
 	BSON_APPEND_INT32(query, "Key", 1);
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
