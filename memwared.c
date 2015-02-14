@@ -29,10 +29,10 @@
 
 /* event handling, network IO*/
 void do_accept( int sfd, short event, void *arg);
-void do_read(int sfd, short event, void *arg);
-void do_write(int sfd, short event, void *arg);
-void *conn_work_process(void *arg);
-void *mongo_clt_worker (void *data, char *db, char *table);
+void do_read(int sfd, short event, mw_conn *conn);
+void do_write(int sfd, short event, mw_conn *mw_conn);
+void *conn_work_process(mw_conn *conn);
+char *mongo_clt_worker (void *data, char *db, char *table);
 static void conn_init(void);
 
 void memwared_close(int sig);
@@ -114,8 +114,10 @@ void do_accept(int fd, short event, void *arg)
 		return ((void)2);
 	}
 	
+	mw_conn *conn = (mw_conn*)malloc(sizeof(mw_conn));
+	conn->sfd = sfd;
 
-	threadpool_add_worker(conn_work_process, sfd);
+	threadpool_add_worker(conn_work_process, (void *)conn);
 	//conn_work_process(&fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
@@ -131,17 +133,19 @@ void do_accept(int fd, short event, void *arg)
 	return ;
 }
 
-void *conn_work_process(void *arg)
+void *conn_work_process(mw_conn *conn)
 {
+	
 	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), *(int*)arg);
 	struct event *rev = (struct event*)malloc(sizeof(struct event));
-	event_set(rev, *(int*)arg, EV_READ|EV_PERSIST,do_read, rev);
+	conn->revent = rev;
+	event_set(rev, conn->sfd, EV_READ|EV_PERSIST,do_read, (void *)conn);
 	event_base_set(main_base,rev);
 	event_add(rev, 0);
 	return NULL;
 }
 
-void do_read(int sfd, short event, void *arg){
+void do_read(int sfd, short event, mw_conn *conn){
 	//printf("read fd: %d\n", sfd);
 	char buffer[1024];
 	int rev_size;
@@ -150,6 +154,7 @@ void do_read(int sfd, short event, void *arg){
 
 	char db[32];
 	char collection[64];
+	char write_buffer[1024];
 	if (rev_size > 0){
 		msgpack_unpacked msg;
 		msgpack_unpacked_init(&msg);
@@ -168,27 +173,29 @@ void do_read(int sfd, short event, void *arg){
 		//msgpack_object_print(stdout, obj);
 		//printf("\n");
 		//printf("recv: %s", buffer);
-		mongo_clt_worker(mongoc_pool, db, collection);
+		memset(write_buffer, 0, 1024);
+		conn->wbuf = mongo_clt_worker(mongoc_pool, db, collection);
 	}else {
 		printf("error recv \n");
 	}
 	
 	struct event *send = (struct event*)malloc(sizeof(struct event));
-	event_set(send, sfd, EV_WRITE|EV_PERSIST, do_write, send);
+	conn->wevent = send;
+	event_set(send, sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
 	event_base_set(main_base,send);
 	event_add(send, 0);
-	event_del(arg);
+	event_del(conn->revent);
 	//close(sfd);
 	return ;
 }
 
-void do_write(int sfd, short event, void *arg){
+void do_write(int sfd, short event, mw_conn *conn){
 	char buffer[1024];
 	int send_size;
 	memset(buffer,0,1024+1);
 	//mongo_clt_worker(mongoc_pool);
 	//sprintf(buffer,"send buffer fd: %d",sfd);
-	
+	//printf("%s\n",conn->wbuf);
 	msgpack_sbuffer* msg_buffer = msgpack_sbuffer_new();
 	msgpack_packer* pk = msgpack_packer_new(msg_buffer,msgpack_sbuffer_write);
 
@@ -200,7 +207,8 @@ void do_write(int sfd, short event, void *arg){
 	
 	//printf("%s,%d", msg_buffer->data, msg_buffer->size);
 	//sprintf(msg_buffer->data, "\n");
-	strcpy(buffer,msg_buffer->data);
+	//strcpy(buffer,msg_buffer->data);
+	strcpy(buffer,conn->wbuf);
 	//sprintf(buffer, "\n");
 	//printf("%d",sizeof(buffer));
 	send_size = send(sfd,buffer, sizeof(buffer),0);
@@ -213,12 +221,14 @@ void do_write(int sfd, short event, void *arg){
 	msgpack_sbuffer_free(msg_buffer);
 	msgpack_packer_free(pk);
 
-	event_del(arg);
+	event_del(conn->wevent);
+	free(conn);
+	conn = NULL;
 	close(sfd);
 	return ;
 }
 
-void *mongo_clt_worker (void *data, char* db, char* table)
+char *mongo_clt_worker (void *data, char* db, char* table)
 {
 	mongoc_client_pool_t *pool = data;
 	mongoc_client_t *client;
@@ -245,11 +255,9 @@ void *mongo_clt_worker (void *data, char* db, char* table)
 	mongoc_cursor_destroy(cursor);
 	mongoc_collection_destroy(collection);
 
-
-
 	mongoc_client_pool_push(pool,client);
 	
-	return NULL;
+	return str;
 }
 
 void memwared_close(int sig)
@@ -551,7 +559,7 @@ main (int argc, char **argv)
 
 	struct event ev;
 	printf("socket fd: %d\n",sfd);
-	printf("main_base ptr: %p\n",main_base);
+	//printf("main_base ptr: %p\n",main_base);
 	event_set(&ev, sfd, EV_READ | EV_PERSIST, do_accept, &ev);
 	event_base_set(main_base, &ev);
 	event_add(&ev, 0);

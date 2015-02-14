@@ -31,7 +31,7 @@ static threadpool *pool = NULL;
 
 void threadpool_init(int max_thread_num);
 int threadpool_destroy();
-int threadpool_add_worker(void *(*process)(void *arg), int sfd);
+int threadpool_add_worker(void *(*process)(void *arg), void* conn);
 void *threadpool_handle(void *arg);
 void *myprocess(void *arg);
 #endif
