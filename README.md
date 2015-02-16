@@ -6,4 +6,4 @@ libevent version :1.4.13-stable
 
 mongo-c-driver-1.1.0
 
-msgpack-c-cpp-0.5.9
+msgpack-c-cpp-0.6.0

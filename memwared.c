@@ -105,7 +105,7 @@ void do_accept(int fd, short event, void *arg)
 		close(sfd);
 		return ((void)1);
 	}else {
-		//printf("accept: sfd[%d]\n",sfd);
+		//printf("accept: sfd[%p]\n",&sfd);
 	}
 
 	if (fcntl(sfd, F_SETFL, fcntl(sfd, F_GETFL) | O_NONBLOCK) < 0){
@@ -117,16 +117,19 @@ void do_accept(int fd, short event, void *arg)
 	mw_conn *conn = (mw_conn*)malloc(sizeof(mw_conn));
 	conn->sfd = sfd;
 
-	threadpool_add_worker(conn_work_process, (void *)conn);
+	threadpool_add_worker(conn_work_process, conn);
 	//conn_work_process(&fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
-	/*struct event *rev = (struct event*)malloc(sizeof(struct event));
-	//struct event rev;
-	event_set(rev, sfd, EV_READ|EV_PERSIST,do_read, rev);
-	event_base_set(main_base,rev);
-	event_add(rev, 0);*/
-
+	//struct event *rev = (struct event*)malloc(sizeof(struct event));
+	//conn->revent = rev;
+	
+	/*
+	conn->revent = (struct event *)malloc(sizeof(struct event));
+	event_set(conn->revent, sfd, EV_READ|EV_PERSIST,do_read, conn);
+	event_base_set(main_base, conn->revent);
+	event_add(conn->revent, 0);
+	*/
 
 	//event_del(arg);
 	//close(sfd);
@@ -135,13 +138,14 @@ void do_accept(int fd, short event, void *arg)
 
 void *conn_work_process(mw_conn *conn)
 {
+	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
+	//struct event *rev = (struct event*)malloc(sizeof(struct event));
+	//conn->revent = rev;
+	conn->revent = (struct event *)malloc(sizeof(struct event));
+	event_set(conn->revent, conn->sfd, EV_READ|EV_PERSIST,do_read, (void *)conn);
+	event_base_set(main_base,conn->revent);
+	event_add(conn->revent, 0);
 	
-	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), *(int*)arg);
-	struct event *rev = (struct event*)malloc(sizeof(struct event));
-	conn->revent = rev;
-	event_set(rev, conn->sfd, EV_READ|EV_PERSIST,do_read, (void *)conn);
-	event_base_set(main_base,rev);
-	event_add(rev, 0);
 	return NULL;
 }
 
@@ -156,59 +160,63 @@ void do_read(int sfd, short event, mw_conn *conn){
 	char collection[64];
 	char write_buffer[1024];
 	if (rev_size > 0){
-		msgpack_unpacked msg;
-		msgpack_unpacked_init(&msg);
-		bool success = msgpack_unpack_next(&msg, buffer, sizeof(buffer), NULL);
-		msgpack_object obj = msg.data;
-		if (obj.type == MSGPACK_OBJECT_ARRAY){
-			msgpack_object* p = obj.via.array.ptr;
-			memset(db, 0, 32);
-			strncpy(db, p->via.raw.ptr,p->via.raw.size);
-			//printf("%s\n",db);
-			p++;
-			memset(collection, 0, 64);
-			strncpy(collection, p->via.raw.ptr, p->via.raw.size);
-			//printf("%s\n",collection);
+		msgpack_zone mempool;
+		msgpack_zone_init(&mempool, 2048);
+
+		msgpack_object obj;
+		int res_unpack = msgpack_unpack(buffer, sizeof(buffer), NULL, &mempool, &obj);
+		//printf("%d\n",obj.type);
+		msgpack_zone_destroy(&mempool);
+		if (res_unpack == 1){
+			if (obj.type == MSGPACK_OBJECT_ARRAY){
+				msgpack_object* p = obj.via.array.ptr;
+				memset(db, 0, 32);
+				strncpy(db, p->via.str.ptr,p->via.str.size);
+				p++;
+				memset(collection, 0, 64);
+				strncpy(collection, p->via.str.ptr, p->via.str.size);
+				//msgpack_object_print(stdout, obj);
+				//printf("\n");
+				//printf("recv: %s", buffer);
+				memset(write_buffer, 0, 1024);
+				//printf("%s,%s",db,collection);
+				//conn->wbuf = (char *)malloc(1024);
+				//conn->wbuf = "test";
+				//strcpy(conn->wbuf,mongo_clt_worker(mongoc_pool, db, collection));
+			}else if(obj.type == MSGPACK_OBJECT_POSITIVE_INTEGER) {
+				conn->wbuf = "";
+				printf("error recv : MSGPACK_OBJECT_POSITIVE_INTEGER\n");
+			}
+		}else {
+			printf("error recv can't parse \n");
 		}
-		//msgpack_object_print(stdout, obj);
-		//printf("\n");
-		//printf("recv: %s", buffer);
-		memset(write_buffer, 0, 1024);
-		conn->wbuf = mongo_clt_worker(mongoc_pool, db, collection);
+		//mongo_clt_worker(mongoc_pool,"gamedb","entity_ff14_ClassJob");
 	}else {
 		printf("error recv \n");
 	}
 	
-	struct event *send = (struct event*)malloc(sizeof(struct event));
-	conn->wevent = send;
-	event_set(send, sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
-	event_base_set(main_base,send);
-	event_add(send, 0);
+	//struct event *send = (struct event*)malloc(sizeof(struct event));
+	//conn->wevent = send;
+	conn->wevent = (struct event*)malloc(sizeof(struct event));
+	event_set(conn->wevent, sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
+	event_base_set(main_base,conn->wevent);
+	event_add(conn->wevent, 0);
 	event_del(conn->revent);
+	free(conn->revent);
 	//close(sfd);
 	return ;
 }
 
 void do_write(int sfd, short event, mw_conn *conn){
+	//printf("write fd: %d\n",sfd);
 	char buffer[1024];
 	int send_size;
 	memset(buffer,0,1024+1);
 	//mongo_clt_worker(mongoc_pool);
 	//sprintf(buffer,"send buffer fd: %d",sfd);
 	//printf("%s\n",conn->wbuf);
-	msgpack_sbuffer* msg_buffer = msgpack_sbuffer_new();
-	msgpack_packer* pk = msgpack_packer_new(msg_buffer,msgpack_sbuffer_write);
 
-	msgpack_pack_array(pk, 2);
-	msgpack_pack_raw(pk, 5);
-	msgpack_pack_raw_body(pk, "hello", 5);
-	msgpack_pack_raw(pk, 11);
-	msgpack_pack_raw_body(pk, "messagepack", 11);
-	
-	//printf("%s,%d", msg_buffer->data, msg_buffer->size);
-	//sprintf(msg_buffer->data, "\n");
-	//strcpy(buffer,msg_buffer->data);
-	strcpy(buffer,conn->wbuf);
+	strcpy(buffer,"abc");
 	//sprintf(buffer, "\n");
 	//printf("%d",sizeof(buffer));
 	send_size = send(sfd,buffer, sizeof(buffer),0);
@@ -217,11 +225,11 @@ void do_write(int sfd, short event, mw_conn *conn){
 	}else {
 		//printf("send: %s", buffer);
 	}
-
-	msgpack_sbuffer_free(msg_buffer);
-	msgpack_packer_free(pk);
-
+	
+	//printf("conn->sfd: %p %d\n", &conn->sfd, conn->sfd);
+	//printf("sfd: %p %d\n", &sfd, sfd);
 	event_del(conn->wevent);
+	free(conn->wevent);
 	free(conn);
 	conn = NULL;
 	close(sfd);
@@ -264,6 +272,10 @@ void memwared_close(int sig)
 {
 	printf("memwared close, please 'ctrl+c' to shutdown \n");
 	threadpool_destroy();
+	event_base_loopbreak(main_base);
+	
+	mongoc_uri_destroy(mongoc_uri);
+	mongoc_cleanup();
 	signal(SIGINT, SIG_DFL);
 }
 
@@ -391,6 +403,7 @@ main (int argc, char **argv)
 	if (!sanitycheck()){
 		return EX_OSERR;
 	}
+	printf("msgpack-c-%s\n", msgpack_version());
 
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
@@ -571,9 +584,7 @@ main (int argc, char **argv)
 	}
 
 
-	printf("close memwared bye!\n");
-	mongoc_uri_destroy(mongoc_uri);
-	mongoc_cleanup();
+	//printf("close memwared bye!\n");
 	close(sfd);
 	return 0;
 }
