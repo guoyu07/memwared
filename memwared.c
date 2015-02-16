@@ -32,7 +32,7 @@ void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, mw_conn *conn);
 void do_write(int sfd, short event, mw_conn *mw_conn);
 void *conn_work_process(mw_conn *conn);
-char *mongo_clt_worker (void *data, char *db, char *table);
+void *mongo_clt_worker (void *data, char *res, char *db, char *table);
 static void conn_init(void);
 
 void memwared_close(int sig);
@@ -182,9 +182,8 @@ void do_read(int sfd, short event, mw_conn *conn){
 				//printf("%s,%s",db,collection);
 				//conn->wbuf = (char *)malloc(1024);
 				//conn->wbuf = "test";
-				//strcpy(conn->wbuf,mongo_clt_worker(mongoc_pool, db, collection));
+				//mongo_clt_worker(mongoc_pool, conn->wbuf, db, collection);
 			}else if(obj.type == MSGPACK_OBJECT_POSITIVE_INTEGER) {
-				conn->wbuf = "";
 				printf("error recv : MSGPACK_OBJECT_POSITIVE_INTEGER\n");
 			}
 		}else {
@@ -215,8 +214,12 @@ void do_write(int sfd, short event, mw_conn *conn){
 	//mongo_clt_worker(mongoc_pool);
 	//sprintf(buffer,"send buffer fd: %d",sfd);
 	//printf("%s\n",conn->wbuf);
-
-	strcpy(buffer,"abc");
+	
+	conn->wbuf = (char *)malloc(1024);
+	memset(conn->wbuf,0,1024);
+	mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
+	//printf("[conn->wbuf]===>%s\n", conn->wbuf);
+	strcpy(buffer, conn->wbuf);
 	//sprintf(buffer, "\n");
 	//printf("%d",sizeof(buffer));
 	send_size = send(sfd,buffer, sizeof(buffer),0);
@@ -230,13 +233,14 @@ void do_write(int sfd, short event, mw_conn *conn){
 	//printf("sfd: %p %d\n", &sfd, sfd);
 	event_del(conn->wevent);
 	free(conn->wevent);
+	free(conn->wbuf);
 	free(conn);
 	conn = NULL;
 	close(sfd);
 	return ;
 }
 
-char *mongo_clt_worker (void *data, char* db, char* table)
+void *mongo_clt_worker (void *data, char* res, char* db, char* table)
 {
 	mongoc_client_pool_t *pool = data;
 	mongoc_client_t *client;
@@ -257,6 +261,7 @@ char *mongo_clt_worker (void *data, char* db, char* table)
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
 		//printf("%s\n", str);
+		strcpy(res,str);
 		bson_free(str);
 	}
 	bson_destroy(query);
@@ -265,7 +270,7 @@ char *mongo_clt_worker (void *data, char* db, char* table)
 
 	mongoc_client_pool_push(pool,client);
 	
-	return str;
+	return NULL;
 }
 
 void memwared_close(int sig)
