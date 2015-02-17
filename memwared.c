@@ -45,6 +45,7 @@ struct settings settings;
 
 static struct event_base *main_base;
 mongoc_client_pool_t *mongoc_pool;
+mongoc_client_pool_t *mongoc_pool_2;
 mongoc_uri_t *mongoc_uri;
 
 
@@ -218,6 +219,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 	conn->wbuf = (char *)malloc(1024);
 	memset(conn->wbuf,0,1024);
 	mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
+	mongo_clt_worker(mongoc_pool_2, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 	//printf("[conn->wbuf]===>%s\n", conn->wbuf);
 	strcpy(buffer, conn->wbuf);
 	//sprintf(buffer, "\n");
@@ -408,7 +410,8 @@ main (int argc, char **argv)
 	if (!sanitycheck()){
 		return EX_OSERR;
 	}
-	printf("msgpack-c-%s\n", msgpack_version());
+	printf("msgpack-c:%s\n", msgpack_version());
+	printf("mongo-c-driver:%s\n", MONGOC_VERSION_S);
 
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
@@ -572,8 +575,9 @@ main (int argc, char **argv)
 	}
 
 	mongoc_init();
-	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minPollSize=16");
+	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=99");
 	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
+	mongoc_pool_2 = mongoc_client_pool_new(mongoc_uri);
 
 	struct event ev;
 	printf("socket fd: %d\n",sfd);
