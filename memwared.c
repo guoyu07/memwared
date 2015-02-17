@@ -166,7 +166,6 @@ void do_read(int sfd, short event, mw_conn *conn){
 		msgpack_object obj;
 		int res_unpack = msgpack_unpack(buffer, sizeof(buffer), NULL, &mempool, &obj);
 		//printf("%d\n",obj.type);
-		msgpack_zone_destroy(&mempool);
 		if (res_unpack == 1){
 			if (obj.type == MSGPACK_OBJECT_ARRAY){
 				msgpack_object* p = obj.via.array.ptr;
@@ -190,6 +189,7 @@ void do_read(int sfd, short event, mw_conn *conn){
 			printf("error recv can't parse \n");
 		}
 		//mongo_clt_worker(mongoc_pool,"gamedb","entity_ff14_ClassJob");
+		msgpack_zone_destroy(&mempool);
 	}else {
 		printf("error recv \n");
 	}
@@ -590,6 +590,6 @@ main (int argc, char **argv)
 
 
 	//printf("close memwared bye!\n");
-	close(sfd);
+	//close(sfd);
 	return 0;
 }
