@@ -1,5 +1,7 @@
 AUTOMAKE_OPTIONS=foreign
 
+#AM_CFLAGS = -Wall
+
 bin_PROGRAMS = memwared
 
 memwared_SOURCES = memwared.c memwared.h \
@@ -9,6 +11,7 @@ memwared_SOURCES = memwared.c memwared.h \
 				   threadpool/list.c threadpool/list.h \
 				   threadpool/queue.c threadpool/queue.h \
 				   threadpool/threadpool.c threadpool/threadpool.h \
+				   threadpool/mongothreadpool.c threadpool/mongothreadpool.h \
 				   #thread.c \
 				   #items.c items.h \
 				   #cache.c cache.h \

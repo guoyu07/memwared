@@ -511,6 +511,7 @@ static inline int mutex_lock(pthread_mutex_t *mutex)
 #include "threadpool/list.h"
 #include "threadpool/queue.h"
 #include "threadpool/threadpool.h"
+#include "threadpool/mongothreadpool.h"
 
 
 /*

@@ -32,7 +32,8 @@ void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, mw_conn *conn);
 void do_write(int sfd, short event, mw_conn *mw_conn);
 void *conn_work_process(mw_conn *conn);
-void *mongo_clt_worker (void *data, char *res, char *db, char *table);
+//void *mongo_clt_worker (void *data, char *res, char *db, char *table);
+void *mongo_clt_worker (void *data);
 static void conn_init(void);
 
 void memwared_close(int sig);
@@ -45,7 +46,6 @@ struct settings settings;
 
 static struct event_base *main_base;
 mongoc_client_pool_t *mongoc_pool;
-mongoc_client_pool_t *mongoc_pool_2;
 mongoc_uri_t *mongoc_uri;
 
 
@@ -218,8 +218,8 @@ void do_write(int sfd, short event, mw_conn *conn){
 	
 	conn->wbuf = (char *)malloc(1024);
 	memset(conn->wbuf,0,1024);
-	mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
-	mongo_clt_worker(mongoc_pool_2, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
+	mongothreadpool_add_worker(mongo_clt_worker,mongoc_pool);
+	//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 	//printf("[conn->wbuf]===>%s\n", conn->wbuf);
 	strcpy(buffer, conn->wbuf);
 	//sprintf(buffer, "\n");
@@ -242,7 +242,8 @@ void do_write(int sfd, short event, mw_conn *conn){
 	return ;
 }
 
-void *mongo_clt_worker (void *data, char* res, char* db, char* table)
+//void *mongo_clt_worker (void *data, char* res, char* db, char* table)
+void *mongo_clt_worker (void *data)
 {
 	mongoc_client_pool_t *pool = data;
 	mongoc_client_t *client;
@@ -256,14 +257,14 @@ void *mongo_clt_worker (void *data, char* res, char* db, char* table)
 	if (!client){
 		return NULL;
 	}
-	collection = mongoc_client_get_collection(client, db, table);
+	collection = mongoc_client_get_collection(client, "gamedb", "entity_ff14_ClassJob");
 	query = bson_new();
 	BSON_APPEND_INT32(query, "Key", 1);
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
 		//printf("%s\n", str);
-		strcpy(res,str);
+		//strcpy(res,str);
 		bson_free(str);
 	}
 	bson_destroy(query);
@@ -279,6 +280,7 @@ void memwared_close(int sig)
 {
 	printf("memwared close, please 'ctrl+c' to shutdown \n");
 	threadpool_destroy();
+	mongothreadpool_destroy();
 	event_base_loopbreak(main_base);
 	
 	mongoc_uri_destroy(mongoc_uri);
@@ -506,6 +508,7 @@ main (int argc, char **argv)
 	
 	/* thread_pool_init */
 	threadpool_init(4);
+	mongothreadpool_init(10);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){
@@ -575,9 +578,8 @@ main (int argc, char **argv)
 	}
 
 	mongoc_init();
-	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=99");
+	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
 	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
-	mongoc_pool_2 = mongoc_client_pool_new(mongoc_uri);
 
 	struct event ev;
 	printf("socket fd: %d\n",sfd);
