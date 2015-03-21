@@ -31,7 +31,7 @@
 void do_accept( int sfd, short event, void *arg);
 void do_read(int sfd, short event, mw_conn *conn);
 void do_write(int sfd, short event, mw_conn *mw_conn);
-void *conn_work_process(mw_conn *conn);
+void *conn_work_process(void *data);
 //void *mongo_clt_worker (void *data, char *res, char *db, char *table);
 int *mongo_clt_worker (void *data);
 static void conn_init(void);
@@ -137,11 +137,12 @@ void do_accept(int fd, short event, void *arg)
 	return ;
 }
 
-void *conn_work_process(mw_conn *conn)
+void *conn_work_process(void *data)
 {
 	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
 	//struct event *rev = (struct event*)malloc(sizeof(struct event));
 	//conn->revent = rev;
+	mw_conn *conn = data;
 	conn->revent = (struct event *)malloc(sizeof(struct event));
 	event_set(conn->revent, conn->sfd, EV_READ|EV_PERSIST,do_read, (void *)conn);
 	event_base_set(main_base,conn->revent);
