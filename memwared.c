@@ -216,9 +216,11 @@ void do_read(int sfd, short event, mw_conn *conn){
 	free(conn->revent);
 	//close(sfd);
 	*/
+
 	conn->wbuf = (char *)malloc(1024*2);
 	memset(conn->wbuf,0,1024*2);
 	mongothreadpool_add_worker(mongo_clt_worker,conn);
+	//mongo_clt_worker(conn);
 	return ;
 }
 
@@ -323,6 +325,7 @@ void memwared_close(int sig)
 	
 	mongoc_uri_destroy(mongoc_uri);
 	mongoc_cleanup();
+	event_base_loopbreak(main_base);
 	signal(SIGINT, SIG_DFL);
 }
 
