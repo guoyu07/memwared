@@ -11,6 +11,9 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include <bson.h>
+#include <mongoc.h>
+
 #include "protocol_binary.h"
 #include "cache.h"
 
@@ -577,6 +580,9 @@ typedef struct _mw_conn {
 
 	char *wbuf;
 	int wsize;
+
+    mongoc_cursor_t *cursor;
+    const bson_t *doc;
 } mw_conn; 
 
 

@@ -216,17 +216,17 @@ void do_read(int sfd, short event, mw_conn *conn){
 	free(conn->revent);
 	//close(sfd);
 	*/
-	//conn->wbuf = (char *)malloc(1024);
-	//memset(conn->wbuf,0,1024);
+	conn->wbuf = (char *)malloc(1024*2);
+	memset(conn->wbuf,0,1024*2);
 	mongothreadpool_add_worker(mongo_clt_worker,conn);
 	return ;
 }
 
 void do_write(int sfd, short event, mw_conn *conn){
 	//printf("write fd: %d\n",sfd);
-	char buffer[1024];
+	char buffer[1024*2];
 	int send_size;
-	memset(buffer,0,1024+1);
+	memset(buffer,0,1024*2+1);
 	int res = 1;
 	//mongo_clt_worker(mongoc_pool);
 	//sprintf(buffer,"send buffer fd: %d",sfd);
@@ -240,6 +240,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 	
 			//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 			//printf("[conn->wbuf]===>%s\n", conn->wbuf);
+	
 			strcpy(buffer, conn->wbuf);
 			//sprintf(buffer, "\n");
 			//printf("%d",sizeof(buffer));
@@ -283,15 +284,18 @@ int *mongo_clt_worker (void *data)
 	
 	collection = mongoc_client_get_collection(client, conn->rquery.db, conn->rquery.collection);
 	query = bson_new();
-	BSON_APPEND_INT32(query, "Key", 1);
+	BSON_APPEND_INT32(query, "cost", 8);
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
-		//printf("%s\n", str);
+		//printf("conn->wbuf====>%s\n", str);
+
 		//strcpy(res,str);
-		conn->wbuf = (char *)malloc(1024);
-		memset(conn->wbuf,0,1024);
+
+		//conn->wbuf = (char *)malloc(1024*2);
+		//memset(conn->wbuf,0,1024*2);
 		strcpy(conn->wbuf,str);
+		//printf("sizeof(conn->wbuf) : %d\n",sizeof(conn->wbuf));
 		bson_free(str);
 	}
 	bson_destroy(query);
@@ -542,7 +546,7 @@ main (int argc, char **argv)
 	
 	/* thread_pool_init */
 	threadpool_init(4);
-	mongothreadpool_init(10);
+	mongothreadpool_init(8);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){
