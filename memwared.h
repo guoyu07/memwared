@@ -561,12 +561,20 @@ void threadlocal_stats_reset(void);
 void threadlocal_stats_aggregate(struct thread_stats *stats);
 void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out);
 
+typedef struct _mw_rquery
+{
+    char db[256];
+    char collection[256];
+} mw_rquery;
+
 typedef struct _mw_conn {
 	struct event* revent;
 	struct event* wevent;
 	int sfd;
+    mw_rquery rquery;
 	char *rbuf;
 	int rsize;
+
 	char *wbuf;
 	int wsize;
 } mw_conn; 

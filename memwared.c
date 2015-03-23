@@ -171,11 +171,20 @@ void do_read(int sfd, short event, mw_conn *conn){
 		if (res_unpack == 1){
 			if (obj.type == MSGPACK_OBJECT_ARRAY){
 				msgpack_object* p = obj.via.array.ptr;
-				memset(db, 0, 32);
-				strncpy(db, p->via.str.ptr,p->via.str.size);
+				//memset(db, 0, 32);
+				//strncpy(db, p->via.str.ptr,p->via.str.size);
+				
+				memset(conn->rquery.db, 0, 256);
+				strncpy(conn->rquery.db, p->via.str.ptr,p->via.str.size);
+				
+				//strncpy(conn->rquery->db, p->via.str.ptr,p->via.str.size);
 				p++;
-				memset(collection, 0, 64);
-				strncpy(collection, p->via.str.ptr, p->via.str.size);
+				//memset(collection, 0, 64);
+				//strncpy(collection, p->via.str.ptr, p->via.str.size);
+
+				memset(conn->rquery.collection,0,256);
+				strncpy(conn->rquery.collection, p->via.str.ptr, p->via.str.size);
+				
 				//msgpack_object_print(stdout, obj);
 				//printf("\n");
 				//printf("recv: %s", buffer);
@@ -207,8 +216,8 @@ void do_read(int sfd, short event, mw_conn *conn){
 	free(conn->revent);
 	//close(sfd);
 	*/
-	conn->wbuf = (char *)malloc(1024);
-	memset(conn->wbuf,0,1024);
+	//conn->wbuf = (char *)malloc(1024);
+	//memset(conn->wbuf,0,1024);
 	mongothreadpool_add_worker(mongo_clt_worker,conn);
 	return ;
 }
@@ -271,7 +280,8 @@ int *mongo_clt_worker (void *data)
 	if (!client){
 		return NULL;
 	}
-	collection = mongoc_client_get_collection(client, "gamedb", "entity_ff14_ClassJob");
+	
+	collection = mongoc_client_get_collection(client, conn->rquery.db, conn->rquery.collection);
 	query = bson_new();
 	BSON_APPEND_INT32(query, "Key", 1);
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
@@ -279,6 +289,8 @@ int *mongo_clt_worker (void *data)
 		str = bson_as_json(doc, NULL);
 		//printf("%s\n", str);
 		//strcpy(res,str);
+		conn->wbuf = (char *)malloc(1024);
+		memset(conn->wbuf,0,1024);
 		strcpy(conn->wbuf,str);
 		bson_free(str);
 	}
