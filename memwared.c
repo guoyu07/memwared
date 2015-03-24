@@ -53,6 +53,7 @@ mongoc_uri_t *mongoc_uri;
 
 
 
+
 static void settings_init(void) {
     settings.use_cas = true;
     settings.access = 0700;
@@ -217,10 +218,24 @@ void do_read(int sfd, short event, mw_conn *conn){
 	//close(sfd);
 	*/
 
-	conn->wbuf = (char *)malloc(1024*2);
-	memset(conn->wbuf,0,1024*2);
+
+	//conn->wbuf = (char *)malloc(1024*2);
+	//memset(conn->wbuf,0,1024*2);
 	mongothreadpool_add_worker(mongo_clt_worker,conn);
 	//mongo_clt_worker(conn);
+	
+	//pthread_t thread;
+	//pthread_create(&thread,NULL,mongo_clt_worker,conn);
+	//pthread_detach(thread);
+
+	conn->wevent = (struct event*)malloc(sizeof(struct event));
+	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
+	event_base_set(main_base,conn->wevent);
+	event_add(conn->wevent, 0);
+	event_del(conn->revent);
+	free(conn->revent);
+
+	//printf("sfd==============[%d]\n",conn->sfd);
 	return ;
 }
 
@@ -243,7 +258,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 			//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 			//printf("[conn->wbuf]===>%s\n", conn->wbuf);
 	
-			strcpy(buffer, conn->wbuf);
+			strcpy(buffer, "test");
 			//sprintf(buffer, "\n");
 			//printf("%d",sizeof(buffer));
 			send_size = send(sfd,buffer, sizeof(buffer),0);
@@ -258,9 +273,10 @@ void do_write(int sfd, short event, mw_conn *conn){
 	
 	event_del(conn->wevent);
 	free(conn->wevent);
-	free(conn->wbuf);
+	//free(conn->wbuf);
 	free(conn);
 	conn = NULL;
+	//printf("event write sfd [%d]\n",sfd);
 	close(sfd);	
 	
 	return ;
@@ -290,28 +306,24 @@ int *mongo_clt_worker (void *data)
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
-		//printf("conn->wbuf====>%s\n", str);
+		//printf("conn->wbuf====>[%d]%p\n", conn->sfd, *str);
 
 		//strcpy(res,str);
 
 		//conn->wbuf = (char *)malloc(1024*2);
 		//memset(conn->wbuf,0,1024*2);
-		strcpy(conn->wbuf,str);
+		//strcpy(conn->wbuf,str);
 		//printf("sizeof(conn->wbuf) : %d\n",sizeof(conn->wbuf));
 		bson_free(str);
 	}
+	
 	bson_destroy(query);
 	mongoc_cursor_destroy(cursor);
 	mongoc_collection_destroy(collection);
-
+	
+	//printf("sfd==============[%d]\n",conn->sfd);
 	mongoc_client_pool_push(mongoc_pool,client);
 	
-	conn->wevent = (struct event*)malloc(sizeof(struct event));
-	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
-	event_base_set(main_base,conn->wevent);
-	event_add(conn->wevent, 0);
-	event_del(conn->revent);
-	free(conn->revent);
 
 	return 0;
 }
@@ -549,7 +561,7 @@ main (int argc, char **argv)
 	
 	/* thread_pool_init */
 	threadpool_init(4);
-	mongothreadpool_init(8);
+	mongothreadpool_init(64);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){
@@ -619,7 +631,7 @@ main (int argc, char **argv)
 	}
 
 	mongoc_init();
-	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
+	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=64");
 	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
 
 	struct event ev;
