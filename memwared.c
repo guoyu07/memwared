@@ -119,8 +119,8 @@ void do_accept(int fd, short event, void *arg)
 	mw_conn *conn = (mw_conn*)malloc(sizeof(mw_conn));
 	conn->sfd = sfd;
 
-	threadpool_add_worker(conn_work_process, conn);
-	//conn_work_process(conn);
+	//threadpool_add_worker(conn_work_process, conn);
+	conn_work_process(conn);
 	//conn_work_process(&fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
@@ -220,15 +220,19 @@ void do_read(int sfd, short event, mw_conn *conn){
 	*/
 
 
-	conn->wbuf = (char *)malloc(1024*2);
-	memset(conn->wbuf,0,1024*2);
-	mongothreadpool_add_worker(mongo_clt_worker,conn);
+	//conn->wbuf = (char *)malloc(1024*2);
+	//memset(conn->wbuf,0,1024*2);
+	//mongothreadpool_add_worker(mongo_clt_worker,conn);
 	//mongo_clt_worker(conn);
 	
 	//pthread_t thread;
 	//pthread_create(&thread,NULL,mongo_clt_worker,conn);
 	//pthread_detach(thread);
 	
+	conn->wevent = (struct event*)malloc(sizeof(struct event));
+	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
+	event_base_set(main_base,conn->wevent);
+	event_add(conn->wevent, 0);
 	event_del(conn->revent);
 	free(conn->revent);
 
@@ -239,8 +243,13 @@ void do_read(int sfd, short event, mw_conn *conn){
 void do_write(int sfd, short event, mw_conn *conn){
 	//printf("write fd: %d\n",sfd);
 
+	conn->wbuf = (char *)malloc(1024*2);
+	memset(conn->wbuf,0,1024*2);
+	//mongothreadpool_add_worker(mongo_clt_worker,conn);
 
-	char buffer[1024*2];
+	mongo_clt_worker(conn);
+
+	/*char buffer[1024*2];
 	int send_size;
 	memset(buffer,0,1024*2+1);
 	int res = 1;
@@ -269,7 +278,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 			
 			//printf("conn->sfd: %p %d\n", &conn->sfd, conn->sfd);
 			//printf("sfd: %p %d\n", &sfd, sfd);
-	
+	*/
 	event_del(conn->wevent);
 	free(conn->wevent);
 	free(conn->wbuf);
@@ -284,6 +293,9 @@ void do_write(int sfd, short event, mw_conn *conn){
 //void *mongo_clt_worker (void *data, char* res, char* db, char* table)
 int *mongo_clt_worker (void *data)
 {
+	char buffer[1024*2];
+	int send_size;
+
 	mw_conn *conn = data;
 	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
 	//printf("%s\n",conn->wbuf);
@@ -302,7 +314,7 @@ int *mongo_clt_worker (void *data)
 	
 	collection = mongoc_client_get_collection(client, conn->rquery.db, conn->rquery.collection);
 	query = bson_new();
-	BSON_APPEND_INT32(query, "Key", 1);
+	BSON_APPEND_INT32(query, "cost", 8);
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
@@ -311,8 +323,17 @@ int *mongo_clt_worker (void *data)
 		//strcpy(res,str);
 
 		//conn->wbuf = (char *)malloc(1024*2);
-		strcpy(conn->wbuf,str);
+		//strcpy(conn->wbuf,str);
 		//printf("sizeof(conn->wbuf) : %s%d\n",conn->wbuf,sizeof(conn->wbuf));
+
+		memset(buffer,0,1024*2+1);
+		strcpy(buffer, str);
+		send_size = send(conn->sfd,buffer, sizeof(buffer),0);
+			if (send_size < 0){
+				printf("error send \n");
+			}else {
+				//printf("send: %s", buffer);
+			}
 		bson_free(str);
 	}
 	
@@ -324,10 +345,10 @@ int *mongo_clt_worker (void *data)
 	mongoc_client_pool_push(mongoc_pool,client);
 	
 
-	conn->wevent = (struct event*)malloc(sizeof(struct event));
-	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
-	event_base_set(main_base,conn->wevent);
-	event_add(conn->wevent, 0);
+	//conn->wevent = (struct event*)malloc(sizeof(struct event));
+	//event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
+	//event_base_set(main_base,conn->wevent);
+	//event_add(conn->wevent, 0);
 
 	return 0;
 }
