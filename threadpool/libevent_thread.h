@@ -34,6 +34,8 @@ static int init_count = 0;
 static pthread_mutex_t init_lock;
 static pthread_cond_t init_cond;
 
+static int last_thread = -1;
+
 static void create_worker(void *(*func)(void *), void *arg);
 void thread_init(int nthread, struct event_base *main_base);
 

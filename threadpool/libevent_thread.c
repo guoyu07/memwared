@@ -8,7 +8,7 @@ static void thread_libevent_process(int fd, short which, void *arg)
     if (read(fd, buf, 1) != 1){
    		fprintf(stderr, "Can't read from libevent pipe\n");
     }else {
-		printf("thread_libevent_process\n");
+		printf("thread_libevent_process thread 0x%x\n", pthread_self());
     }
 }
 
@@ -71,15 +71,18 @@ static void wait_for_thread_registration(int nthreads) {
     }
 }
 
-void dispatch_new(int sfd){
+void dispatch_conn(int sfd){
 	char buf[1];
 	buf[0] = 'c';
-	if (write(threads[0].notify_send_fd, buf, 1) != 1){
+
+	int tid = (last_thread + 1) % 5;
+	if (write(threads[tid].notify_send_fd, buf, 1) != 1){
 		perror("Writing to thread notify pipe");
 	}
-	printf("0 thread 0x%x  \n", threads[0]);
-	printf("1 thread 0x%x  \n", threads[1]);
-	printf("2 thread 0x%x  \n", threads[2]);
+	last_thread = tid;
+	//printf("0 notify_send_fd %d  \n", threads[0].notify_send_fd);
+	//printf("1 notify_send_fd %d  \n", threads[1].notify_send_fd);
+	//printf("2 notify_send_fd %d  \n", threads[2].notify_send_fd);
 }
 
 void thread_init(int nthreads, struct event_base *main_base)
