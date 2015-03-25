@@ -120,6 +120,7 @@ void do_accept(int fd, short event, void *arg)
 	conn->sfd = sfd;
 
 	threadpool_add_worker(conn_work_process, conn);
+	//conn_work_process(conn);
 	//conn_work_process(&fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
@@ -140,10 +141,10 @@ void do_accept(int fd, short event, void *arg)
 
 void *conn_work_process(void *data)
 {
-	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
 	//struct event *rev = (struct event*)malloc(sizeof(struct event));
 	//conn->revent = rev;
 	mw_conn *conn = data;
+	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
 	conn->revent = (struct event *)malloc(sizeof(struct event));
 	event_set(conn->revent, conn->sfd, EV_READ|EV_PERSIST,do_read, (void *)conn);
 	event_base_set(main_base,conn->revent);
@@ -219,19 +220,15 @@ void do_read(int sfd, short event, mw_conn *conn){
 	*/
 
 
-	//conn->wbuf = (char *)malloc(1024*2);
-	//memset(conn->wbuf,0,1024*2);
+	conn->wbuf = (char *)malloc(1024*2);
+	memset(conn->wbuf,0,1024*2);
 	mongothreadpool_add_worker(mongo_clt_worker,conn);
 	//mongo_clt_worker(conn);
 	
 	//pthread_t thread;
 	//pthread_create(&thread,NULL,mongo_clt_worker,conn);
 	//pthread_detach(thread);
-
-	conn->wevent = (struct event*)malloc(sizeof(struct event));
-	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
-	event_base_set(main_base,conn->wevent);
-	event_add(conn->wevent, 0);
+	
 	event_del(conn->revent);
 	free(conn->revent);
 
@@ -241,6 +238,8 @@ void do_read(int sfd, short event, mw_conn *conn){
 
 void do_write(int sfd, short event, mw_conn *conn){
 	//printf("write fd: %d\n",sfd);
+
+
 	char buffer[1024*2];
 	int send_size;
 	memset(buffer,0,1024*2+1);
@@ -258,7 +257,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 			//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 			//printf("[conn->wbuf]===>%s\n", conn->wbuf);
 	
-			strcpy(buffer, "test");
+			strcpy(buffer, conn->wbuf);
 			//sprintf(buffer, "\n");
 			//printf("%d",sizeof(buffer));
 			send_size = send(sfd,buffer, sizeof(buffer),0);
@@ -273,7 +272,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 	
 	event_del(conn->wevent);
 	free(conn->wevent);
-	//free(conn->wbuf);
+	free(conn->wbuf);
 	free(conn);
 	conn = NULL;
 	//printf("event write sfd [%d]\n",sfd);
@@ -286,6 +285,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 int *mongo_clt_worker (void *data)
 {
 	mw_conn *conn = data;
+	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
 	//printf("%s\n",conn->wbuf);
 	//mongoc_client_pool_t *pool = data;
 	mongoc_client_t *client;
@@ -302,18 +302,17 @@ int *mongo_clt_worker (void *data)
 	
 	collection = mongoc_client_get_collection(client, conn->rquery.db, conn->rquery.collection);
 	query = bson_new();
-	BSON_APPEND_INT32(query, "cost", 8);
+	BSON_APPEND_INT32(query, "Key", 1);
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
-		//printf("conn->wbuf====>[%d]%p\n", conn->sfd, *str);
+		//printf("conn->wbuf====>[%d]%s\n", conn->sfd, str);
 
 		//strcpy(res,str);
 
 		//conn->wbuf = (char *)malloc(1024*2);
-		//memset(conn->wbuf,0,1024*2);
-		//strcpy(conn->wbuf,str);
-		//printf("sizeof(conn->wbuf) : %d\n",sizeof(conn->wbuf));
+		strcpy(conn->wbuf,str);
+		//printf("sizeof(conn->wbuf) : %s%d\n",conn->wbuf,sizeof(conn->wbuf));
 		bson_free(str);
 	}
 	
@@ -324,6 +323,11 @@ int *mongo_clt_worker (void *data)
 	//printf("sfd==============[%d]\n",conn->sfd);
 	mongoc_client_pool_push(mongoc_pool,client);
 	
+
+	conn->wevent = (struct event*)malloc(sizeof(struct event));
+	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
+	event_base_set(main_base,conn->wevent);
+	event_add(conn->wevent, 0);
 
 	return 0;
 }
@@ -561,7 +565,7 @@ main (int argc, char **argv)
 	
 	/* thread_pool_init */
 	threadpool_init(4);
-	mongothreadpool_init(64);
+	mongothreadpool_init(10);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){
@@ -631,7 +635,7 @@ main (int argc, char **argv)
 	}
 
 	mongoc_init();
-	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=64");
+	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
 	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
 
 	struct event ev;
