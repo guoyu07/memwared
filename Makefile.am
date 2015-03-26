@@ -12,6 +12,7 @@ memwared_SOURCES = memwared.c memwared.h \
 				   threadpool/queue.c threadpool/queue.h \
 				   threadpool/threadpool.c threadpool/threadpool.h \
 				   threadpool/mongothreadpool.c threadpool/mongothreadpool.h \
+				   threadpool/libevent_thread.c threadpool/libevent_thread.h \
 				   #thread.c \
 				   #items.c items.h \
 				   #cache.c cache.h \

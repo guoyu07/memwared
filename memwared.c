@@ -116,11 +116,14 @@ void do_accept(int fd, short event, void *arg)
 		return ((void)2);
 	}
 	
-	mw_conn *conn = (mw_conn*)malloc(sizeof(mw_conn));
-	conn->sfd = sfd;
+	//mw_conn *conn = (mw_conn*)malloc(sizeof(mw_conn));
+	//conn->sfd = sfd;
+	printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), sfd);
+	dispatch_conn(sfd);
+
 
 	//threadpool_add_worker(conn_work_process, conn);
-	conn_work_process(conn);
+	//conn_work_process(conn);
 	//conn_work_process(&fds[0]);
 
 	//printf("main_base ptr: %p\n",main_base);
@@ -144,17 +147,17 @@ void *conn_work_process(void *data)
 	//struct event *rev = (struct event*)malloc(sizeof(struct event));
 	//conn->revent = rev;
 	mw_conn *conn = data;
-	//printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
+	printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), conn->sfd);
 	conn->revent = (struct event *)malloc(sizeof(struct event));
 	event_set(conn->revent, conn->sfd, EV_READ|EV_PERSIST,do_read, (void *)conn);
-	event_base_set(main_base,conn->revent);
+	event_base_set(conn->main_base,conn->revent);
 	event_add(conn->revent, 0);
 	
 	return NULL;
 }
 
 void do_read(int sfd, short event, mw_conn *conn){
-	//printf("read fd: %d\n", sfd);
+	printf("read fd: %d\n", sfd);
 	char buffer[1024];
 	int rev_size;
 	memset(buffer, 0, 1024);
@@ -231,7 +234,7 @@ void do_read(int sfd, short event, mw_conn *conn){
 	
 	conn->wevent = (struct event*)malloc(sizeof(struct event));
 	event_set(conn->wevent, conn->sfd, EV_WRITE|EV_PERSIST, do_write, (void *)conn);
-	event_base_set(main_base,conn->wevent);
+	event_base_set(conn->main_base,conn->wevent);
 	event_add(conn->wevent, 0);
 	event_del(conn->revent);
 	free(conn->revent);
@@ -247,9 +250,9 @@ void do_write(int sfd, short event, mw_conn *conn){
 	memset(conn->wbuf,0,1024*2);
 	//mongothreadpool_add_worker(mongo_clt_worker,conn);
 
-	mongo_clt_worker(conn);
+	//mongo_clt_worker(conn);
 
-	/*char buffer[1024*2];
+	char buffer[1024*2];
 	int send_size;
 	memset(buffer,0,1024*2+1);
 	int res = 1;
@@ -266,7 +269,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 			//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 			//printf("[conn->wbuf]===>%s\n", conn->wbuf);
 	
-			strcpy(buffer, conn->wbuf);
+			strcpy(buffer, "test");
 			//sprintf(buffer, "\n");
 			//printf("%d",sizeof(buffer));
 			send_size = send(sfd,buffer, sizeof(buffer),0);
@@ -278,7 +281,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 			
 			//printf("conn->sfd: %p %d\n", &conn->sfd, conn->sfd);
 			//printf("sfd: %p %d\n", &sfd, sfd);
-	*/
+	
 	event_del(conn->wevent);
 	free(conn->wevent);
 	free(conn->wbuf);
@@ -356,12 +359,11 @@ int *mongo_clt_worker (void *data)
 void memwared_close(int sig)
 {
 	printf("memwared close, please 'ctrl+c' to shutdown \n");
-	threadpool_destroy();
-	mongothreadpool_destroy();
-	event_base_loopbreak(main_base);
+	//threadpool_destroy();
+	//mongothreadpool_destroy();
 	
-	mongoc_uri_destroy(mongoc_uri);
-	mongoc_cleanup();
+	//mongoc_uri_destroy(mongoc_uri);
+	//mongoc_cleanup();
 	event_base_loopbreak(main_base);
 	signal(SIGINT, SIG_DFL);
 }
@@ -585,8 +587,10 @@ main (int argc, char **argv)
 	}
 	
 	/* thread_pool_init */
-	threadpool_init(4);
-	mongothreadpool_init(10);
+	//threadpool_init(4);
+	thread_init(5, main_base);
+	
+	//mongothreadpool_init(10);
 
 	/* socket tcp ,bind */
 	/*if (settings.socketpath == NULL){
@@ -653,11 +657,12 @@ main (int argc, char **argv)
 		return -1;
 	}else {
 		printf("listenning...\n");
+		//dispatch_new(sfd);
 	}
 
-	mongoc_init();
-	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
-	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
+	//mongoc_init();
+	//mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
+	//mongoc_pool = mongoc_client_pool_new(mongoc_uri);
 
 	struct event ev;
 	printf("socket fd: %d\n",sfd);
@@ -673,7 +678,7 @@ main (int argc, char **argv)
 	}
 
 
-	//printf("close memwared bye!\n");
-	//close(sfd);
+	printf("close memwared bye!\n");
+	close(sfd);
 	return 0;
 }
