@@ -264,7 +264,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 	//memset(conn->wbuf,0,1024);
 
 	//mongothreadpool_add_worker(mongo_clt_worker,conn);
-	//mongo_clt_worker(conn);
+	mongo_clt_worker(conn);
 	
 			//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
 			//printf("[conn->wbuf]===>%s\n", conn->wbuf);
@@ -329,14 +329,6 @@ int *mongo_clt_worker (void *data)
 		//strcpy(conn->wbuf,str);
 		//printf("sizeof(conn->wbuf) : %s%d\n",conn->wbuf,sizeof(conn->wbuf));
 
-		memset(buffer,0,1024*2+1);
-		strcpy(buffer, str);
-		send_size = send(conn->sfd,buffer, sizeof(buffer),0);
-			if (send_size < 0){
-				printf("error send \n");
-			}else {
-				//printf("send: %s", buffer);
-			}
 		bson_free(str);
 	}
 	
@@ -362,8 +354,8 @@ void memwared_close(int sig)
 	//threadpool_destroy();
 	//mongothreadpool_destroy();
 	
-	//mongoc_uri_destroy(mongoc_uri);
-	//mongoc_cleanup();
+	mongoc_uri_destroy(mongoc_uri);
+	mongoc_cleanup();
 	event_base_loopbreak(main_base);
 	signal(SIGINT, SIG_DFL);
 }
@@ -588,7 +580,7 @@ main (int argc, char **argv)
 	
 	/* thread_pool_init */
 	//threadpool_init(4);
-	thread_init(5, main_base);
+	thread_init(4, main_base);
 	
 	//mongothreadpool_init(10);
 
@@ -660,9 +652,9 @@ main (int argc, char **argv)
 		//dispatch_new(sfd);
 	}
 
-	//mongoc_init();
-	//mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
-	//mongoc_pool = mongoc_client_pool_new(mongoc_uri);
+	mongoc_init();
+	mongoc_uri = mongoc_uri_new("mongodb://root:root@127.0.0.1:27017/?authSource=gamedb&minpollsize=16");
+	mongoc_pool = mongoc_client_pool_new(mongoc_uri);
 
 	struct event ev;
 	printf("socket fd: %d\n",sfd);
