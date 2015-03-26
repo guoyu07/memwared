@@ -10,6 +10,19 @@ static void thread_libevent_process(int fd, short which, void *arg)
     }else {
 		printf("thread_libevent_process thread 0x%x\n", pthread_self());
     }
+
+    mw_conn *child_conn = (mw_conn*)malloc(sizeof(mw_conn));
+
+    mw_conn *main_conn  = queue_peek(&(me->new_conn_queue));
+
+    child_conn->main_base = me->base;
+    child_conn->sfd = main_conn->sfd;
+
+	queue_dequeue(&(me->new_conn_queue), (void **)&main_conn);
+    free(main_conn);
+    printf("%d\n",child_conn->sfd);
+    conn_work_process(child_conn);
+
 }
 
 static void setup_thread(LIBEVENT_THREAD *me)
@@ -74,12 +87,25 @@ static void wait_for_thread_registration(int nthreads) {
 void dispatch_conn(int sfd){
 	char buf[1];
 	buf[0] = 'c';
+	
+	mw_conn *main_conn = (mw_conn*)malloc(sizeof(mw_conn));
 
 	int tid = (last_thread + 1) % 5;
-	if (write(threads[tid].notify_send_fd, buf, 1) != 1){
+
+	LIBEVENT_THREAD *thread = threads + tid;
+
+	last_thread = tid;
+
+	main_conn->sfd = sfd;
+
+	printf("dispatch_conn sfd : %d, thread 0x%x\n",sfd,pthread_self());
+
+	queue_enqueue(&(thread->new_conn_queue) , main_conn);
+
+	if (write(thread->notify_send_fd, buf, 1) != 1){
 		perror("Writing to thread notify pipe");
 	}
-	last_thread = tid;
+
 	//printf("0 notify_send_fd %d  \n", threads[0].notify_send_fd);
 	//printf("1 notify_send_fd %d  \n", threads[1].notify_send_fd);
 	//printf("2 notify_send_fd %d  \n", threads[2].notify_send_fd);

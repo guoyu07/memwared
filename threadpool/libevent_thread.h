@@ -10,6 +10,27 @@
 #include "list.h"
 #include "queue.h"
 
+typedef struct _mw_rquery
+{
+    char db[256];
+    char collection[256];
+} mw_rquery;
+
+typedef struct _mw_conn {
+	struct event* revent;
+	struct event* wevent;
+	int sfd;
+    mw_rquery rquery;
+	char *rbuf;
+	int rsize;
+
+	char *wbuf;
+	int wsize;
+
+	struct event_base *main_base;
+    //mongoc_cursor_t *cursor;
+} mw_conn; 
+
 typedef struct {
     pthread_t thread_id;        
     struct event_base *base;    
