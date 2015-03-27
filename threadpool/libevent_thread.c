@@ -22,6 +22,7 @@ static void thread_libevent_process(int fd, short which, void *arg)
     free(main_conn);
     printf("%d\n",child_conn->sfd);
     conn_work_process(child_conn);
+    //close(main_conn->sfd);
 
 }
 
@@ -84,13 +85,13 @@ static void wait_for_thread_registration(int nthreads) {
     }
 }
 
-void dispatch_conn(int sfd){
+void dispatch_conn(int sfd, int thread_num){
 	char buf[1];
 	buf[0] = 'c';
 	
 	mw_conn *main_conn = (mw_conn*)malloc(sizeof(mw_conn));
 
-	int tid = (last_thread + 1) % 5;
+	int tid = (last_thread + 1) % thread_num;
 
 	LIBEVENT_THREAD *thread = threads + tid;
 

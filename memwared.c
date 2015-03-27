@@ -47,6 +47,7 @@ struct settings settings;
 static struct event_base *main_base;
 mongoc_client_pool_t *mongoc_pool;
 mongoc_uri_t *mongoc_uri;
+static int thread_number = 10;
 
 
 
@@ -119,7 +120,7 @@ void do_accept(int fd, short event, void *arg)
 	//mw_conn *conn = (mw_conn*)malloc(sizeof(mw_conn));
 	//conn->sfd = sfd;
 	printf("thread_id: 0x%x, working on task sfd %d\n",pthread_self(), sfd);
-	dispatch_conn(sfd);
+	dispatch_conn(sfd,thread_number);
 
 
 	//threadpool_add_worker(conn_work_process, conn);
@@ -254,37 +255,63 @@ void do_write(int sfd, short event, mw_conn *conn){
 
 	char buffer[1024*2];
 	int send_size;
-	memset(buffer,0,1024*2+1);
-	int res = 1;
-	//mongo_clt_worker(mongoc_pool);
-	//sprintf(buffer,"send buffer fd: %d",sfd);
-	//printf("%s\n",conn->wbuf);
+	//memset(buffer,0,1024*2+1);
+	//mongo_clt_worker(conn);
 	
-	//conn->wbuf = (char *)malloc(1024);
-	//memset(conn->wbuf,0,1024);
+	mongoc_client_t *client;
+	mongoc_collection_t *collection;
+	mongoc_cursor_t *cursor;
+	const bson_t *doc;
+	bson_t *query;
+	char *str;
 
-	//mongothreadpool_add_worker(mongo_clt_worker,conn);
-	mongo_clt_worker(conn);
+	client = mongoc_client_pool_pop(mongoc_pool);
+	if (!client){
+		return ;
+	}
 	
-			//mongo_clt_worker(mongoc_pool, conn->wbuf, "gamedb", "entity_ff14_ClassJob");
-			//printf("[conn->wbuf]===>%s\n", conn->wbuf);
+	collection = mongoc_client_get_collection(client, conn->rquery.db, conn->rquery.collection);
+	query = bson_new();
+	BSON_APPEND_INT32(query, "cost", 8);
+	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
+	while(mongoc_cursor_next(cursor, &doc)){
+		str = bson_as_json(doc, NULL);
+		
+		memset(buffer, 0, 1024*2+1);
+		strcpy(buffer,str);
+		send_size = send(sfd,buffer, sizeof(buffer),0);
+		if (send_size < 0){
+			printf("error send \n");
+		}else {
+			//printf("send: %s", buffer);
+		}
+
+		bson_free(str);
+	}
 	
-			strcpy(buffer, "test");
-			//sprintf(buffer, "\n");
-			//printf("%d",sizeof(buffer));
-			send_size = send(sfd,buffer, sizeof(buffer),0);
-			if (send_size < 0){
-				printf("error send \n");
-			}else {
-				//printf("send: %s", buffer);
-			}
-			
-			//printf("conn->sfd: %p %d\n", &conn->sfd, conn->sfd);
-			//printf("sfd: %p %d\n", &sfd, sfd);
+	bson_destroy(query);
+	mongoc_cursor_destroy(cursor);
+	mongoc_collection_destroy(collection);
+	
+	//printf("sfd==============[%d]\n",conn->sfd);
+	mongoc_client_pool_push(mongoc_pool,client);
+
+	
+	/*strcpy(buffer, "test");
+	//sprintf(buffer, "\n");
+	//printf("%d",sizeof(buffer));
+	send_size = send(sfd,buffer, sizeof(buffer),0);
+	if (send_size < 0){
+		printf("error send \n");
+	}else {
+		//printf("send: %s", buffer);
+	}
+	*/		
 	
 	event_del(conn->wevent);
 	free(conn->wevent);
 	free(conn->wbuf);
+	close(conn->sfd);
 	free(conn);
 	conn = NULL;
 	//printf("event write sfd [%d]\n",sfd);
@@ -580,7 +607,7 @@ main (int argc, char **argv)
 	
 	/* thread_pool_init */
 	//threadpool_init(4);
-	thread_init(4, main_base);
+	thread_init(thread_number, main_base);
 	
 	//mongothreadpool_init(10);
 
