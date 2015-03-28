@@ -7,6 +7,8 @@
 #include <pthread.h>
 #include <assert.h>
 #include <event.h>
+#include <mongoc.h>
+#include <msgpack.h>
 #include "list.h"
 #include "queue.h"
 
@@ -14,6 +16,8 @@ typedef struct _mw_rquery
 {
     char db[256];
     char collection[256];
+    char method[256];
+    bson_t* query;
 } mw_rquery;
 
 typedef struct _mw_conn {

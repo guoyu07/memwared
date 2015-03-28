@@ -161,7 +161,7 @@ void do_read(int sfd, short event, mw_conn *conn){
 	printf("read fd: %d\n", sfd);
 	char buffer[1024];
 	int rev_size;
-	memset(buffer, 0, 1024);
+	//memset(buffer, 0, 1024);
 	rev_size = recv(sfd, buffer, 1024, 0);
 
 	char db[32];
@@ -190,11 +190,34 @@ void do_read(int sfd, short event, mw_conn *conn){
 
 				memset(conn->rquery.collection,0,256);
 				strncpy(conn->rquery.collection, p->via.str.ptr, p->via.str.size);
+
+				p++;
+
+				memset(conn->rquery.method,0,256);
+				strncpy(conn->rquery.method, p->via.str.ptr, p->via.str.size);
+				printf("conn->rquery.method %s\n",conn->rquery.method);
+
+				p++;
+				if(p->type == MSGPACK_OBJECT_ARRAY){
+					//conn->rquery.query = (msgpack_object *)malloc(sizeof(msgpack_object));
+					msgpack_object* query = p->via.array.ptr;
+					if (query->type == MSGPACK_OBJECT_MAP){
+						msgpack_object_kv* kv = query->via.map.ptr;
+						printf("kv->key.type : %d\n",kv->key.via.str.size);
+						printf("kv->val.type : %d\n",kv->val.via.u64);
+						char tmp[64];
+						memset(tmp, 0, 64);
+						strncpy(tmp, kv->key.via.str.ptr, kv->key.via.str.size);
+						conn->rquery.query = bson_new();
+						printf("tmp : %s\n", tmp);
+						BSON_APPEND_INT32(conn->rquery.query, tmp, kv->val.via.u64);
+					}
+				}
 				
 				//msgpack_object_print(stdout, obj);
 				//printf("\n");
 				//printf("recv: %s", buffer);
-				memset(write_buffer, 0, 1024);
+				//memset(write_buffer, 0, 1024);
 				//printf("%s,%s",db,collection);
 				//conn->wbuf = (char *)malloc(1024);
 				//conn->wbuf = "test";
@@ -262,7 +285,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 	mongoc_collection_t *collection;
 	mongoc_cursor_t *cursor;
 	const bson_t *doc;
-	bson_t *query;
+	//bson_t *query;
 	char *str;
 
 	client = mongoc_client_pool_pop(mongoc_pool);
@@ -271,9 +294,10 @@ void do_write(int sfd, short event, mw_conn *conn){
 	}
 	
 	collection = mongoc_client_get_collection(client, conn->rquery.db, conn->rquery.collection);
-	query = bson_new();
-	BSON_APPEND_INT32(query, "cost", 8);
-	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query, NULL, NULL);
+	//query = bson_new();
+	
+	//BSON_APPEND_INT32(query, "cost", 8);
+	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,conn->rquery.query, NULL, NULL);
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
 		
@@ -289,7 +313,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 		bson_free(str);
 	}
 	
-	bson_destroy(query);
+	bson_destroy(conn->rquery.query);
 	mongoc_cursor_destroy(cursor);
 	mongoc_collection_destroy(collection);
 	
