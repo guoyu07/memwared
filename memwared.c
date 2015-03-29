@@ -164,9 +164,9 @@ void do_read(int sfd, short event, mw_conn *conn){
 	//memset(buffer, 0, 1024);
 	rev_size = recv(sfd, buffer, 1024, 0);
 
-	char db[32];
-	char collection[64];
-	char write_buffer[1024];
+	//char db[32];
+	//char collection[64];
+	//char write_buffer[1024];
 	if (rev_size > 0){
 		msgpack_zone mempool;
 		msgpack_zone_init(&mempool, 2048);
@@ -270,13 +270,13 @@ void do_read(int sfd, short event, mw_conn *conn){
 void do_write(int sfd, short event, mw_conn *conn){
 	//printf("write fd: %d\n",sfd);
 
-	conn->wbuf = (char *)malloc(1024*2);
-	memset(conn->wbuf,0,1024*2);
+	//conn->wbuf = (char *)malloc(1024*2);
+	//memset(conn->wbuf,0,1024*2);
 	//mongothreadpool_add_worker(mongo_clt_worker,conn);
 
 	//mongo_clt_worker(conn);
 
-	char buffer[1024*2];
+	char buffer[1024*4];
 	int send_size;
 	//memset(buffer,0,1024*2+1);
 	//mongo_clt_worker(conn);
@@ -301,8 +301,9 @@ void do_write(int sfd, short event, mw_conn *conn){
 	while(mongoc_cursor_next(cursor, &doc)){
 		str = bson_as_json(doc, NULL);
 		
-		memset(buffer, 0, 1024*2+1);
+		memset(buffer, 0, 1024*4+1);
 		strcpy(buffer,str);
+		sprintf(buffer,"%s\n",buffer);
 		send_size = send(sfd,buffer, sizeof(buffer),0);
 		if (send_size < 0){
 			printf("error send \n");
@@ -334,7 +335,7 @@ void do_write(int sfd, short event, mw_conn *conn){
 	
 	event_del(conn->wevent);
 	free(conn->wevent);
-	free(conn->wbuf);
+	//free(conn->wbuf);
 	close(conn->sfd);
 	free(conn);
 	conn = NULL;
